@@ -1,7 +1,7 @@
 [project]
 name = "vpt-analyze"
 version = "0.1.0"
-description = "Talk-n-Edit analysis sidecar: transcription, scenes, faces"
+description = "Talk-n-Edit analysis sidecar: transcription, scenes, faces, downloads"
 requires-python = ">=3.11,<3.13"
 dependencies = [
   "numpy<2.3",
@@ -11,6 +11,8 @@ dependencies = [
   "scenedetect>=0.6.4",
   "mlx-whisper>=0.4; sys_platform == 'darwin' and platform_machine == 'arm64'",
   "faster-whisper>=1.1; sys_platform != 'darwin' or platform_machine != 'arm64'",
+  # Downloads from links (YouTube, Twitch, Instagram, …); [default] adds the YouTube challenge solver.
+  "yt-dlp[default]>=2025.11.12",
 ]
 
 [tool.uv]

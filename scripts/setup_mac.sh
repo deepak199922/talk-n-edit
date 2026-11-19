@@ -55,12 +55,14 @@ npm install --no-audit --no-fund --loglevel=error
 npm run build --silent
 ok "Built dist/"
 
-say "3/7  Python analysis environment (transcription, faces, scenes)"
+say "3/7  Python environment (transcription, faces, scenes, downloads)"
 cd python
 [ -x .venv/bin/python ] || uv venv --python 3.12 .venv
 uv pip install --python .venv/bin/python -r pyproject.toml   # shows download progress
+# Sites change often, so always take the newest downloader.
+uv pip install --python .venv/bin/python -q --upgrade "yt-dlp[default]" || warn "Couldn't update yt-dlp now; link downloads may fail until it updates."
 cd "$ROOT"
-ok "Installed into python/.venv"
+ok "Installed into python/.venv (yt-dlp $(python/.venv/bin/python -m yt_dlp --version 2>/dev/null || echo unknown))"
 
 say "4/7  Speech model (one time, about 1.6 GB)"
 if [ "$(uname -m)" = "arm64" ]; then

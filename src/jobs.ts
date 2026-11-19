@@ -3,7 +3,7 @@ import { asStudioError, StudioError } from "./errors.js";
 import { newId } from "./ids.js";
 
 export type JobStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";
-export type Queue = "analysis" | "render";
+export type Queue = "analysis" | "render" | "download";
 
 export interface JobContext {
   jobId: string;
@@ -145,7 +145,7 @@ function pump() {
   if (pumping) return;
   pumping = true;
   try {
-    for (const queue of ["analysis", "render"] as Queue[]) {
+    for (const queue of ["analysis", "render", "download"] as Queue[]) {
       if (running.get(queue)) continue;
       const row = getDb()
         .prepare(`SELECT id FROM jobs WHERE queue=? AND status='queued' AND owner=? ORDER BY created LIMIT 1`)

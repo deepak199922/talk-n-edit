@@ -16,9 +16,13 @@
 
 ## Tools (MCP)
 
-`system_doctor`, `project_open`, `media_import`, `media_inspect`, `analyze` (transcript, faces, scenes, beats), `analysis_get`, `transcript_get`, `frames_get`, `catalog_list`, `timeline_validate`, `timeline_get`, `render_start`, `job_status`, `job_cancel`, `qa_check`, `style_save`, `fx_create`, `open_in_player`.
+`system_doctor`, `project_open`, `media_import`, `media_import_url` (download from a link, optionally only `start`–`end`; `cookiesFromBrowser` for signed-in videos), `link_info` (look at a link without downloading: chapters, most-replayed moments, resolutions), `discover_videos` (YouTube search, channel videos/Shorts/streams, Twitch clips/VODs, any listable link), `media_inspect`, `analyze` (transcript, faces, scenes, beats), `analysis_get`, `transcript_get`, `frames_get`, `catalog_list`, `timeline_validate`, `timeline_get`, `render_start`, `job_status`, `job_cancel`, `qa_check`, `style_save`, `fx_create`, `open_in_player`.
 
-Long work (import, analysis, render, QA) runs as jobs: tools return a `jobId`, and `job_status` waits up to 45 s.
+`analysis_get` with `kind: "source"` returns a link import's title, channel, views, chapters and YouTube's most-replayed moments, in the downloaded file's time.
+
+Downloads use [yt-dlp](https://github.com/yt-dlp/yt-dlp) from the Python environment (setup always updates it) with this app's Node as its JavaScript runtime, and save into the Inbox.
+
+Long work (import, download, analysis, render, QA) runs as jobs: tools return a `jobId`, and `job_status` waits up to 45 s.
 
 ## Timeline format
 
@@ -32,6 +36,7 @@ Full field list: [skills/talk-n-edit/references/timeline-spec.md](../skills/talk
 | --- | --- |
 | `importRoots` | Downloads, Movies, Desktop, Documents, Developer (folders media may be imported from) |
 | `exportDir` | `~/Downloads/Talk-n-Edit/Clips` |
+| `inboxDir` | `~/Downloads/Talk-n-Edit/Inbox` (downloads from links are saved here; always importable) |
 | `whisperModel` | `large-v3-turbo` on Apple Silicon, `small` elsewhere |
 | `transcriptionBackend` | `auto` (`mlx` or `faster-whisper`) |
 | `limits` | `{ "maxImportGB": 20, "maxOutputMinutes": 15 }` |

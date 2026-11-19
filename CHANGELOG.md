@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0: links and discovery
+
+- `media_import_url`: download from YouTube, Shorts, Twitch, Instagram, Vimeo, X and many more sites into the Inbox and import, optionally just a section (exact cuts). Keeps title, channel, chapters and YouTube's most-replayed moments (`analysis_get` kind `source`). Uses your browser's sign-in when asked.
+- `link_info`: look at a link before downloading (chapters, most-replayed moments for the whole video, resolutions, thumbnail).
+- `discover_videos`: YouTube search (relevance, newest, most viewed), a channel's videos/Shorts/streams, Twitch top clips or past broadcasts, any listable link; duration filters; thumbnails.
+- New `inboxDir` setting. Setup installs and always updates yt-dlp.
+
 ## 0.3.0: Talk-n-Edit
 
 - New name: **Talk-n-Edit** (formerly Video Studio). The connector is now `talk-n-edit`; setup replaces the old `video-studio` entry. Existing installs keep their `~/VideoStudio` and `~/Downloads/Video Studio` folders.

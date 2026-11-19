@@ -6,6 +6,7 @@ import { z } from "zod";
 import { asStudioError } from "./errors.js";
 import { readImageB64 } from "./media.js";
 import * as svc from "./service.js";
+import { BROWSERS } from "./web.js";
 import { APP_ROOT } from "./config.js";
 
 // Claude Desktop starts servers in "/"; libraries that look for files next to the working folder (Remotion's browser) need ours.
@@ -38,14 +39,14 @@ const RO = { readOnlyHint: true };
 
 const INSTRUCTIONS = `Talk-n-Edit is a prompt-driven video editor: Claude designs the edit as a timeline (JSON) and the server renders it.
 Start by asking the user for an editing brief (style, pacing, captions, music, effects) unless they gave one; catalog_list styles has presets.
-Workflow: project_open -> media_import -> analyze (transcript, faces, scenes, beats) -> transcript_get / analysis_get
+Workflow: project_open -> media_import (files) or media_import_url (links; link_info peeks first; discover_videos finds videos) -> analyze (transcript, faces, scenes, beats) -> transcript_get / analysis_get
 -> timeline (catalog_list: components, transitions, looks, sfx, styles) -> timeline_validate -> render_start draft -> frames_get / open_in_player
 -> revise with timeline_get + timeline_validate -> render_start final -> qa_check. For effects the library lacks, write one with fx_create and show its preview first.
 Jobs return a jobId: job_status can wait up to 45 s. Finals are copied to the Clips folder (system_doctor shows the Inbox and Clips folders). Never invent ids, components or presets.`;
 
 export function createServer() {
   svc.boot();
-  const server = new McpServer({ name: "talk-n-edit", version: "0.3.0" }, { instructions: INSTRUCTIONS });
+  const server = new McpServer({ name: "talk-n-edit", version: "0.4.0" }, { instructions: INSTRUCTIONS });
 
   server.registerTool(
     "system_doctor",
@@ -77,6 +78,69 @@ export function createServer() {
       const job = svc.mediaImport(projectId, paths);
       const [v] = await svc.waitJobs([job.id], wait);
       return ok(v);
+    }),
+  );
+
+  const browser = z.enum(BROWSERS).optional().describe("Use this browser's sign-in (for private, unlisted, members-only or age-restricted videos)");
+  server.registerTool(
+    "media_import_url",
+    {
+      description:
+        "Download a video from a link (YouTube, Shorts, Twitch VODs and clips, Instagram, Vimeo, X, Facebook and many more) into the Inbox and import it, like media_import. Give start/end (seconds) to download only that part of a long video. The result includes the source (title, channel, chapters and, for YouTube, the most-replayed moments) and a jobId; downloads can take minutes, poll job_status.",
+      inputSchema: {
+        projectId: z.string(),
+        url: z.string().min(8).max(2000),
+        start: z.number().min(0).optional().describe("Download from this second of the source"),
+        end: z.number().positive().optional().describe("Download up to this second of the source"),
+        maxHeight: z.number().int().min(240).max(2160).default(1080).describe("Highest resolution to fetch"),
+        cookiesFromBrowser: browser,
+        wait: z.number().min(0).max(45).default(30).describe("Seconds to wait for the job before returning"),
+      },
+    },
+    wrap(async ({ projectId, url, start, end, maxHeight, cookiesFromBrowser, wait }) => {
+      const job = svc.mediaImportUrl(projectId, url, { start, end, maxHeight, cookiesFromBrowser });
+      const [v] = await svc.waitJobs([job.id], wait);
+      return ok(v);
+    }),
+  );
+
+  server.registerTool(
+    "link_info",
+    {
+      description:
+        "Look at a video link without downloading it: title, channel, length, views, available resolutions, chapters and (YouTube) the most-replayed moments, in the source's time, plus a thumbnail. Use it on long videos to choose which part to download with media_import_url start/end.",
+      inputSchema: { url: z.string().min(8).max(2000), cookiesFromBrowser: browser },
+      annotations: RO,
+    },
+    wrap(async ({ url, cookiesFromBrowser }) => {
+      const r = await svc.linkInfoGet(url, cookiesFromBrowser);
+      return ok({ source: r.source, resolutions: r.formats }, r.thumbnail ? [r.thumbnail] : []);
+    }),
+  );
+
+  server.registerTool(
+    "discover_videos",
+    {
+      description:
+        "Find videos to edit or learn from: YouTube search (query; sort relevance, newest or views), a channel's videos/Shorts/streams (channel: @handle or link), a Twitch streamer's top clips or past broadcasts (platform twitch, channel login, tab clips|videos, range), or any playlist/profile link (url). Filters by duration. Returns numbered results with links, views and dates, plus thumbnail pictures (each result's `picture` number). Import picks with media_import_url.",
+      inputSchema: {
+        query: z.string().max(200).optional(),
+        channel: z.string().max(300).optional(),
+        url: z.string().max(2000).optional(),
+        platform: z.enum(["youtube", "twitch"]).optional(),
+        tab: z.enum(["videos", "shorts", "streams", "clips"]).optional(),
+        sort: z.enum(["relevance", "newest", "views"]).default("relevance"),
+        range: z.enum(["24h", "7d", "30d", "all"]).optional().describe("Twitch clips time range (default 7d)"),
+        count: z.number().int().min(1).max(25).default(10),
+        minDuration: z.number().min(0).optional().describe("Seconds"),
+        maxDuration: z.number().positive().optional().describe("Seconds"),
+        cookiesFromBrowser: browser,
+      },
+      annotations: RO,
+    },
+    wrap(async (a) => {
+      const r = await svc.discover(a);
+      return ok({ searched: r.searched, results: r.results }, r.thumbnails);
     }),
   );
 
@@ -241,8 +305,8 @@ export function createServer() {
     "analysis_get",
     {
       description:
-        "Read analysis results: scenes (each shot with start/end, face coverage, face position and size — use it to pick shots), beats (tempo + beat times for beat-synced cuts), faces (same per-scene view).",
-      inputSchema: { assetId: z.string(), kind: z.enum(["scenes", "beats", "faces"]) },
+        "Read analysis results: scenes (each shot with start/end, face coverage, face position and size — use it to pick shots), beats (tempo + beat times for beat-synced cuts), faces (same per-scene view), source (for videos imported from a link: title, channel, views, chapters and YouTube's most-replayed moments, in the file's time).",
+      inputSchema: { assetId: z.string(), kind: z.enum(["scenes", "beats", "faces", "source"]) },
       annotations: RO,
     },
     wrap(async ({ assetId, kind }) => ok(svc.analysisGet(assetId, kind))),
@@ -307,8 +371,8 @@ Returns a 4-frame preview image (or the build/render error to fix). Show the pre
 async function main() {
   if (process.argv.includes("--paths")) {
     // Used by the setup script so both agree on the folders.
-    const { WORKSPACE, INBOX_DIR, getConfig } = await import("./config.js");
-    console.log(JSON.stringify({ workspace: WORKSPACE, inbox: INBOX_DIR, clips: getConfig().exportDir }));
+    const { WORKSPACE, getConfig } = await import("./config.js");
+    console.log(JSON.stringify({ workspace: WORKSPACE, inbox: getConfig().inboxDir, clips: getConfig().exportDir }));
     return;
   }
   if (process.argv.includes("--check")) {

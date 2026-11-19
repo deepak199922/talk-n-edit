@@ -12,6 +12,7 @@
  */
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -31,6 +32,7 @@ fs.writeFileSync(
     {
       importRoots: [FIX],
       exportDir: EXPORT,
+      inboxDir: path.join(TMP, "inbox (downloads)"),
       transcriptionBackend: "auto",
       ...(process.env.VS_TEST_MODEL ? { whisperModel: process.env.VS_TEST_MODEL } : {}),
     },
@@ -566,6 +568,107 @@ await group("v0.2: animated graphics + custom effects", async () => {
   check("custom effect renders into the video with its props", mag[0] > 180 && mag[1] < 90 && mag[2] > 180, [...mag].join(","));
 });
 
+await group("links: import from a URL, discovery helpers", async () => {
+  // A tiny web server with Range support stands in for a video site (yt-dlp's generic extractor).
+  process.env.NO_PROXY = process.env.no_proxy = [process.env.NO_PROXY, "127.0.0.1", "localhost"].filter(Boolean).join(",");
+  const srv = http.createServer((req, res) => {
+    const f = path.join(FIX, decodeURIComponent(new URL(req.url, "http://x").pathname));
+    if (!f.startsWith(FIX) || !fs.existsSync(f) || !fs.statSync(f).isFile()) {
+      res.statusCode = 404;
+      return res.end("not found");
+    }
+    const size = fs.statSync(f).size;
+    res.setHeader("Accept-Ranges", "bytes");
+    res.setHeader("Content-Type", f.endsWith(".mp4") ? "video/mp4" : "application/octet-stream");
+    const m = /bytes=(\d*)-(\d*)/.exec(req.headers.range ?? "");
+    if (m) {
+      const s0 = m[1] ? +m[1] : 0;
+      const e0 = m[2] ? Math.min(+m[2], size - 1) : size - 1;
+      res.statusCode = 206;
+      res.setHeader("Content-Range", `bytes ${s0}-${e0}/${size}`);
+      res.setHeader("Content-Length", e0 - s0 + 1);
+      if (req.method === "HEAD") return res.end();
+      return fs.createReadStream(f, { start: s0, end: e0 }).pipe(res);
+    }
+    res.setHeader("Content-Length", size);
+    if (req.method === "HEAD") return res.end();
+    fs.createReadStream(f).pipe(res);
+  });
+  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+  const BASE = `http://127.0.0.1:${srv.address().port}`;
+  const P2 = svc.projectOpen("Links project");
+  const inbox = config.getConfig().inboxDir;
+  check("inbox can be moved in config (tests never touch ~/Downloads)", inbox.startsWith(TMP), inbox);
+  check("inbox is always importable", config.getConfig().importRoots.includes(inbox));
+  const runJob = async (job) => {
+    await svc.waitForJob(job.id);
+    return (await svc.waitJobs([job.id], 0))[0];
+  };
+  try {
+    const whole = await runJob(svc.mediaImportUrl(P2.projectId, `${BASE}/talk.mp4`));
+    const wa = whole.result?.assets?.[0];
+    check("import from a link succeeds", whole.status === "succeeded" && !!wa, JSON.stringify(whole.error ?? whole.result).slice(0, 300));
+    check("downloaded into the Inbox", !!whole.result?.downloaded && whole.result.downloaded.startsWith(inbox) && fs.existsSync(whole.result.downloaded), whole.result?.downloaded);
+    check("downloaded video is complete", wa && Math.abs(wa.duration - streamDur(F.talk, "video")) < 0.15, `${wa?.duration} vs ${streamDur(F.talk, "video")}`);
+    if (wa) {
+      const src = svc.analysisGet(wa.assetId, "source");
+      check("source info kept with the asset", src.url.includes("talk") && typeof src.title === "string" && src.title.length > 0, JSON.stringify(src).slice(0, 200));
+    }
+    const part = await runJob(svc.mediaImportUrl(P2.projectId, `${BASE}/talk.mp4`, { start: 2, end: 5 }));
+    const pa = part.result?.assets?.[0];
+    check("download just part of a video", part.status === "succeeded" && pa && Math.abs(pa.duration - 3) < 0.35, JSON.stringify(part.error ?? pa).slice(0, 300));
+    check("part has its own file name", !!part.result?.downloaded && /\(0m02s-0m05s\)/.test(part.result.downloaded), part.result?.downloaded);
+    check("part records its offset", part.result?.source?.sectionStart === 2 && part.result?.source?.sectionEnd === 5, JSON.stringify(part.result?.source ?? {}).slice(0, 200));
+    if (pa && wa) {
+      const ta = await runJob(svc.analyze({ assetId: pa.assetId, include: ["transcript"] }));
+      check("downloaded part transcribes", ta.status === "succeeded", JSON.stringify(ta.error ?? "").slice(0, 200));
+    }
+    const before = fs.readdirSync(inbox).length;
+    const li = await svc.linkInfoGet(`${BASE}/talk.mp4`);
+    check("link_info looks without downloading", !!li.source.title && li.source.url.includes("talk") && fs.readdirSync(inbox).length === before, JSON.stringify(li.source).slice(0, 200));
+    const missing = await runJob(svc.mediaImportUrl(P2.projectId, `${BASE}/no-such-video.mp4`));
+    check("missing video → clear error", missing.status === "failed" && /NOT_FOUND|ENGINE_FAILED/.test(missing.error?.code ?? "") && !!missing.error?.message, JSON.stringify(missing.error ?? {}).slice(0, 200));
+  } finally {
+    srv.close();
+  }
+  const err = (fn) => {
+    try {
+      fn();
+      return null;
+    } catch (e) {
+      return e;
+    }
+  };
+  check("not a link → INVALID_INPUT", err(() => svc.mediaImportUrl(P2.projectId, "my video.mp4"))?.code === "INVALID_INPUT");
+  check("end before start → INVALID_INPUT", err(() => svc.mediaImportUrl(P2.projectId, "https://example.com/v", { start: 9, end: 3 }))?.code === "INVALID_INPUT");
+
+  const web = await import(path.join(ROOT, "dist/web.js"));
+  const t = (d) => web.discoverTarget(d).target;
+  check("discover: YouTube search", t({ query: "podcast clips" }) === "ytsearch10:podcast clips");
+  check("discover: newest first", t({ query: "x", sort: "newest", count: 5 }) === "ytsearchdate5:x");
+  check("discover: most viewed fetches extra to sort", t({ query: "x", sort: "views", count: 5 }) === "ytsearch20:x");
+  check("discover: channel Shorts", t({ channel: "@mkbhd", tab: "shorts" }) === "https://www.youtube.com/@mkbhd/shorts");
+  check("discover: channel link", t({ channel: "https://www.youtube.com/@mkbhd/videos" }) === "https://www.youtube.com/@mkbhd/videos");
+  check("discover: Twitch clips", t({ platform: "twitch", channel: "shroud", range: "30d" }) === "https://www.twitch.tv/shroud/clips?filter=clips&range=30d");
+  check("discover: Twitch link is recognised", t({ channel: "https://www.twitch.tv/shroud", tab: "videos" }) === "https://www.twitch.tv/shroud/videos?filter=archives&sort=time");
+  check("discover: Twitch needs a channel", err(() => web.discoverTarget({ platform: "twitch" }))?.code === "INVALID_INPUT");
+  check("discover: needs something to search", err(() => web.discoverTarget({}))?.code === "INVALID_INPUT");
+  const listing = {
+    extractor: "youtube:search",
+    entries: [
+      { ie_key: "Youtube", id: "aaa", title: "Short one", duration: 40, view_count: 900, channel: "A" },
+      { ie_key: "Youtube", id: "bbb", title: "Long one", duration: 4000, view_count: 50000, channel: "B" },
+      { ie_key: "Youtube", id: "ccc", title: "Medium", duration: 600, view_count: 12000, channel: "C", upload_date: "20261101" },
+    ],
+  };
+  const found = web.parseListing(listing, { sort: "views", maxDuration: 3600, count: 5 });
+  check("discover: filters by length and sorts by views", found.map((x) => x.title).join("|") === "Medium|Short one", JSON.stringify(found));
+  check("discover: builds links, dates and thumbnails", found[0].url === "https://www.youtube.com/watch?v=ccc" && found[0].uploadDate === "2026-11-01" && /i\.ytimg\.com\/vi\/ccc\//.test(found[0].thumbnail));
+  const heat = Array.from({ length: 100 }, (_, i) => ({ start_time: i * 6, end_time: i * 6 + 6, value: i === 20 ? 1 : i === 21 ? 0.95 : i === 70 ? 0.8 : 0.1 }));
+  const peaks = web.replayPeaks(heat, 60, 600);
+  check("most-replayed peaks: only real peaks, no overlaps, in time order, shifted to the section", peaks?.length === 2 && peaks[0].start === 60 && peaks[1].start === 360, JSON.stringify(peaks));
+});
+
 await group("v0.2.1: caption lines, letterbox trim, caption size", async () => {
   // Own caption text (Hinglish, translations) per time range follows the speech word by word.
   const sec = (m) => +m.split(":")[0] * 60 + +m.split(":")[1];
@@ -700,12 +803,15 @@ if (!QUICK) {
     const { StdioClientTransport } = await import(path.join(ROOT, "node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js"));
     // Claude Desktop starts servers with a minimal PATH: make sure binaries are still found.
     const env = { ...process.env, PATH: "/usr/bin:/bin" };
-    const t = new StdioClientTransport({ command: process.execPath, args: ["--disable-warning=ExperimentalWarning", path.join(ROOT, "dist/index.js")], env });
+    // …and in "/" as their working folder.
+    const t = new StdioClientTransport({ command: process.execPath, args: ["--disable-warning=ExperimentalWarning", path.join(ROOT, "dist/index.js")], env, cwd: "/" });
     const c = new Client({ name: "e2e", version: "1" });
     await c.connect(t);
     const tools = (await c.listTools()).tools.map((x) => x.name).sort();
-    check("18 tools listed", tools.length === 18, tools.join(","));
+    check("21 tools listed", tools.length === 21 && ["media_import_url", "discover_videos", "link_info"].every((n) => tools.includes(n)), tools.join(","));
     const call = async (name, args) => c.callTool({ name, arguments: args });
+    const dv = await call("discover_videos", { platform: "twitch" });
+    check("discover_videos: bad input → clean error", dv.isError && /INVALID_INPUT/.test(dv.content[0].text));
     const doc = await call("system_doctor", {});
     check("system_doctor ok with minimal PATH", !doc.isError && JSON.parse(doc.content[0].text).ok === true, doc.content[0].text.slice(0, 400));
     const po = JSON.parse((await call("project_open", { name: "E2E project" })).content[0].text);
@@ -718,7 +824,7 @@ if (!QUICK) {
     check("media_inspect returns an image", insp.content.some((x) => x.type === "image"));
     const bad = await call("timeline_validate", { timeline: base("bad", { clips: [{ id: "c1", assetId: A.talk, in: 4, out: 2 }] }) });
     check("bad timeline → isError with JSON path", bad.isError && /clips\[0\]\.out/.test(bad.content[0].text));
-    const rs = JSON.parse((await call("render_start", { quality: "draft", wait: 45, timeline: base("mcp", { clips: [{ id: "c1", assetId: A.talk, in: 0, out: 4 }], captions: { preset: "word-pop" } }) })).content[0].text);
+    const rs = JSON.parse((await call("render_start", { quality: "draft", wait: 45, timeline: base("mcp", { clips: [{ id: "c1", assetId: A.talk, in: 0, out: 4 }], captions: { preset: "word-pop" }, overlays: [{ id: "e", component: "Emoji", start: { at: 1 }, duration: 1, props: { emoji: "🔥", animation: "pop", x: 0.8, y: 0.3, size: 0.2 } }] }) })).content[0].text);
     let st = rs.job;
     while (st.status !== "succeeded" && st.status !== "failed") st = JSON.parse((await call("job_status", { jobIds: [rs.jobId], wait: 30 })).content[0].text)[0];
     check("render through MCP succeeds", st.status === "succeeded", JSON.stringify(st).slice(0, 300));

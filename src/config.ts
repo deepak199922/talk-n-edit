@@ -25,6 +25,8 @@ export interface Config {
   importRoots: string[];
   /** Final renders are also copied here with a friendly name. */
   exportDir: string;
+  /** Where you drop videos, and where downloads from links are saved. */
+  inboxDir: string;
   /** "auto" picks mlx-whisper on Apple Silicon, faster-whisper elsewhere. */
   transcriptionBackend: "auto" | "mlx" | "faster-whisper";
   /** Whisper model name (backend specific mapping happens in the sidecar). */
@@ -47,6 +49,7 @@ const DEFAULTS: Config = {
     path.join(HOME, "Developer"),
   ],
   exportDir: path.join(MEDIA_DIR, "Clips"),
+  inboxDir: INBOX_DIR,
   transcriptionBackend: "auto",
   // Apple Silicon runs large-v3-turbo fast with MLX; elsewhere (CPU) default to small.
   whisperModel: process.platform === "darwin" && process.arch === "arm64" ? "large-v3-turbo" : "small",
@@ -77,6 +80,9 @@ export function getConfig(): Config {
   const cfg: Config = { ...DEFAULTS, ...user, limits: { ...DEFAULTS.limits, ...(user.limits ?? {}) } };
   cfg.importRoots = cfg.importRoots.map((r) => path.resolve(r.replace(/^~(?=$|\/)/, HOME)));
   cfg.exportDir = path.resolve(cfg.exportDir.replace(/^~(?=$|\/)/, HOME));
+  cfg.inboxDir = path.resolve(cfg.inboxDir.replace(/^~(?=$|\/)/, HOME));
+  // Downloads land in the Inbox, so it must always be importable.
+  if (!cfg.importRoots.some((r) => cfg.inboxDir === r || cfg.inboxDir.startsWith(r + path.sep))) cfg.importRoots.push(cfg.inboxDir);
   cached = cfg;
   return cfg;
 }

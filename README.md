@@ -61,6 +61,9 @@ It downloads Talk-n-Edit to `~/talk-n-edit` and sets everything up: ffmpeg, Node
 - *"Captions in Hinglish, bigger, yellow on the key words."*
 - *"Make a custom animated price tag that spins in."* (You'll see a preview before it's used.)
 - *"Save this as my style."* and next time: *"Use my style."*
+- *"Make 3 Shorts from https://youtu.be/… — only the part from 12:30 to 18:00."*
+- *"Find the most-viewed podcast clips about startups from this month and show me the top 10."*
+- *"List the latest Shorts from @somechannel"* or *"Get this week's top Twitch clips from shroud."*
 
 ## What it can do
 
@@ -72,6 +75,7 @@ It downloads Talk-n-Edit to `~/talk-n-edit` and sets everything up: ffmpeg, Node
 | **Effects** | 22 transitions, keyframed zooms and punch-ins, 14 colour looks plus your own LUTs, blur/pixelate masks, picture-in-picture and B-roll |
 | **Graphics** | Animated titles, emoji, arrows, callouts, number count-ups (₹2,00,000 style), progress bar, follow/subscribe button, confetti, checklists, plus custom graphics on request |
 | **Audio** | Your music, ducked under speech automatically; 11 built-in sound effects; voice clean-up; loudness set for Instagram and YouTube (−14 LUFS) |
+| **Links and discovery** | Import from a link (YouTube, Shorts, Twitch, Instagram, Vimeo, X and many more), or just part of a long video; keeps chapters and YouTube's most-replayed moments so Claude can jump to the best bits; find videos by search, channel or Twitch top clips, shown with thumbnails |
 | **Quality checks** | Every final is checked for black frames, dead air, loudness, hook timing and caption placement before you get it |
 | **Styles** | Clean creator, hype, cinematic, podcast, minimal, product showcase, and your own saved styles |
 
@@ -113,6 +117,7 @@ Run the same install command again. It pulls the latest version and re-runs the 
 | "ffmpeg is missing filters: subtitles" | Run `brew install ffmpeg-full`, then the install command again, then restart Claude. |
 | A window asks to install "command line developer tools" | Click Install, wait for it to finish, then run the install command again. |
 | The transcript is in the wrong language | Tell Claude the language: *"It's in Hindi."* It re-transcribes with that setting. |
+| A link won't download | Run the install command again (it updates the downloader, since sites change often). For private, unlisted or age-restricted videos, ask Claude to *"use my Chrome sign-in"*. |
 | The first transcription is slow | The speech model downloads once (about 1.6 GB). Later runs are fast. |
 | Animated graphics fail | Run the install command again. It downloads the small headless browser the graphics need. |
 
@@ -138,8 +143,8 @@ Talk-n-Edit is free and open source. It runs through your Claude app, so it uses
 **Which Claude plan do I need?**
 Any plan that runs the Claude desktop app with local connectors. Uploading the skill needs a plan with Skills; see [Anthropic's help article](https://support.claude.com/en/articles/12512180-use-skills-in-claude). Without the skill, Talk-n-Edit still works, but Claude edits less skilfully.
 
-**Can I post videos made from other people's content?**
-Only if you have the rights. Talk-n-Edit edits whatever you give it, but clips from films, TV or other creators can get claimed or taken down.
+**Can I download and edit other people's videos?**
+Talk-n-Edit can download from links and find videos, but it doesn't decide what you may use: **you're responsible** for having the rights to what you download, edit and post, and for following each site's terms. Your own videos, Creative Commons videos and footage you have permission for are safe choices. Reposting other people's work can get it claimed or taken down.
 
 **Windows? Linux?**
 Not packaged yet. Linux works for developers (see below). Windows is on the roadmap.

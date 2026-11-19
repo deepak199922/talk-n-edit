@@ -22,10 +22,14 @@ When the user states preferences they'll want again, offer to save them with `st
 
 ## 2. Look at the material
 
-`project_open` → `media_import` (folder or files; usually the Inbox folder that `system_doctor` shows, e.g. `~/Downloads/Talk-n-Edit/Inbox`) → `media_inspect` (read the contact sheet) → `analyze`:
+`project_open` → `media_import` (folder or files; usually the Inbox folder that `system_doctor` shows, e.g. `~/Downloads/Talk-n-Edit/Inbox`) or `media_import_url` (a link) → `media_inspect` (read the contact sheet) → `analyze`:
 - speech: `transcript` (always), landscape→vertical: `faces` + `scenes`, music for beat cuts: `beats`.
 - Give `language` (e.g. "hi") when you know it: auto-detect can mistake Hindi for English and translate it.
 Read `transcript_get` (pick by sentence ids) and `analysis_get scenes` (shot list with face position/size — pick shots, spot close-ups, avoid UI or junk shots).
+
+**Links.** For a link, call `media_import_url`. For long videos (podcasts, streams), call `link_info` first: it shows chapters and YouTube's most-replayed moments for the whole video without downloading, so you can download only the best part with `start`/`end`. If nothing points to a part, import the whole video and pick moments from the transcript. For link imports, `analysis_get` kind `source` gives chapters and, on YouTube, **mostReplayed**: the moments viewers rewatched most. Treat those as strong clip candidates and say so. Downloads can take minutes: poll `job_status`. If a site wants a sign-in, retry with `cookiesFromBrowser` (ask which browser they use).
+
+**Finding videos.** For "find videos like…", "top clips from…" or "latest Shorts from…", use `discover_videos` (query, channel, Twitch channel + tab clips, sort, duration filters). Show a short numbered list (title, channel, length, views, date; the thumbnails come back as pictures), let the user pick, then import the picks with `media_import_url`. Build good searches yourself from the topic, niche and language; run two or three searches if one is thin.
 
 ## 3. Build the edit (see references/timeline-spec.md for every field)
 
@@ -49,7 +53,7 @@ Translate the brief into timeline features. Common requests:
 | titles, emojis, arrows, price count-up, checklist, subscribe, confetti | `overlays` with components from `catalog_list components` |
 | anything else visual | write it with `fx_create` (section 5) |
 
-Rules: never invent asset ids, sentence ids, components, presets or sounds. Clip in/out snap to word edges by default; when you cut one passage into back-to-back clips, put each cut in the pause between words with `"snap": "frame"`, and fix any "same words may play twice" warning before rendering. Hook in the first second. Clips must make sense on their own. Keep captions clear of graphics (graphics "bottom" sits above captions). Emoji only render in animated components (AnimatedTitle, Emoji), not in HookText, LowerThird or TitleCard. If the footage looks like someone else's (films, trailers, TV, other creators' videos), mention once that posting it may get it claimed or taken down.
+Rules: never invent asset ids, sentence ids, components, presets or sounds. Clip in/out snap to word edges by default; when you cut one passage into back-to-back clips, put each cut in the pause between words with `"snap": "frame"`, and fix any "same words may play twice" warning before rendering. Hook in the first second. Clips must make sense on their own. Keep captions clear of graphics (graphics "bottom" sits above captions). Emoji only render in animated components (AnimatedTitle, Emoji), not in HookText, LowerThird or TitleCard.
 
 ## 4. Draft → review → revise → final
 

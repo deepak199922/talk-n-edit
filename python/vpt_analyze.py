@@ -285,6 +285,12 @@ def doctor(_inp, _params):
         except Exception as e:  # noqa: BLE001
             info[mod] = f"missing ({type(e).__name__})"
     info["yunet"] = os.path.exists(os.path.join(MODELS, "face_detection_yunet_2023mar.onnx"))
+    try:
+        from yt_dlp.version import __version__ as ytv
+
+        info["yt_dlp"] = ytv
+    except Exception as e:  # noqa: BLE001
+        info["yt_dlp"] = f"missing ({type(e).__name__})"
     return info
 
 

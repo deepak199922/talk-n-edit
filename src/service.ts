@@ -2,12 +2,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { analyzeJob, AnalysisKind, transcriptText } from "./analysis.js";
 import { catalog } from "./catalog.js";
-import { APP_ROOT, dirs, ffmpegBin, ffprobeBin, getConfig, INBOX_DIR, LIBRARY, PYTHON_DIR, pythonBin, WORKSPACE } from "./config.js";
+import { APP_ROOT, dirs, ffmpegBin, ffprobeBin, getConfig, LIBRARY, PYTHON_DIR, pythonBin, WORKSPACE } from "./config.js";
 import { StudioError } from "./errors.js";
 import { r3 } from "./ffmpeg.js";
 import { cancelJob, enqueue, eta, getJob, JobRow, recoverJobs, registerJob, waitForJob } from "./jobs.js";
 import { contactSheet, expandPaths, grabFrames, importJob, summarizeAsset } from "./media.js";
 import { run } from "./proc.js";
+import { Browser, discoverVideos, DiscoverInput, linkInfo, sourceFor, urlImportJob, validateUrl } from "./web.js";
 import { qaJob } from "./qa.js";
 import { renderJob, startRender } from "./render.js";
 import { parseTimeline, previewText, resolveTimeline } from "./resolve.js";
@@ -22,6 +23,7 @@ export function boot() {
   registerJob("analyze", "analysis", analyzeJob);
   registerJob("render", "render", renderJob);
   registerJob("qa", "analysis", qaJob);
+  registerJob("download", "download", urlImportJob);
   recoverJobs();
 }
 
@@ -90,6 +92,24 @@ export function mediaImport(projectId: string, paths: string[]) {
   const files = expandPaths(paths);
   if (!files.length) throw new StudioError("INVALID_INPUT", "No media files found in the given paths.", "Supported: video (mp4, mov, mkv…), audio (mp3, wav, m4a…), images (jpg, png, webp, heic).");
   return enqueue("import", { projectId, paths });
+}
+
+/** Download a video from a link (YouTube, Twitch, Instagram, Vimeo, X, …) into the Inbox and import it. */
+export function mediaImportUrl(projectId: string, url: string, opts: { start?: number; end?: number; maxHeight?: number; cookiesFromBrowser?: Browser } = {}) {
+  store.getProject(projectId);
+  validateUrl(url);
+  if (opts.start !== undefined && opts.end !== undefined && opts.end <= opts.start) throw new StudioError("INVALID_INPUT", `"end" (${opts.end}) must be after "start" (${opts.start}).`);
+  return enqueue("download", { projectId, url, ...opts });
+}
+
+/** Look at a link without downloading it (chapters, most-replayed moments, length, views). */
+export async function linkInfoGet(url: string, cookiesFromBrowser?: Browser) {
+  return linkInfo(url, cookiesFromBrowser);
+}
+
+/** Search YouTube, list a channel's videos/Shorts, or a Twitch streamer's top clips. */
+export async function discover(d: DiscoverInput) {
+  return discoverVideos(d);
 }
 
 export async function mediaInspect(assetId: string, wantSheet = true) {
@@ -191,7 +211,7 @@ export function qaCheck(renderId: string) {
 
 // ------------------------------------------------------------ doctor
 export async function doctor() {
-  const out: Record<string, unknown> = { node: process.version, appRoot: APP_ROOT, workspace: WORKSPACE, inbox: INBOX_DIR, clips: getConfig().exportDir, config: getConfig() };
+  const out: Record<string, unknown> = { node: process.version, appRoot: APP_ROOT, workspace: WORKSPACE, inbox: getConfig().inboxDir, clips: getConfig().exportDir, config: getConfig() };
   const issues: string[] = [];
   try {
     const v = await run(ffmpegBin(), ["-hide_banner", "-version"], { timeoutMs: 15000 });
@@ -219,6 +239,8 @@ export async function doctor() {
       const o = path.join(tmp, "doctor.json");
       await run(py, [path.join(PYTHON_DIR, "vpt_analyze.py"), "doctor", "--out", o], { timeoutMs: 120000 });
       out.python = JSON.parse(fs.readFileSync(o, "utf8"));
+      const ytv = (out.python as Record<string, string>).yt_dlp;
+      if (!ytv || ytv.startsWith("missing")) issues.push("yt-dlp (downloads from links) is missing: run the setup script again, then restart Claude");
     } catch (e) {
       issues.push(`Python sidecar failed: ${(e as StudioError).hint ?? (e as Error).message}`);
     }
@@ -240,8 +262,13 @@ import { fxCreate as fxCreateImpl, FxCreateInput } from "./remotion.js";
 import { saveStyle } from "./styles.js";
 
 /** Scenes (with face coverage and position), beats, or face summary for an asset — for picking shots and timing cuts. */
-export function analysisGet(assetId: string, kind: "scenes" | "beats" | "faces") {
+export function analysisGet(assetId: string, kind: "scenes" | "beats" | "faces" | "source") {
   const a = store.getAsset(assetId);
+  if (kind === "source") {
+    const src = sourceFor(a.id);
+    if (!src) throw new StudioError("NOT_FOUND", `${a.name} wasn't imported from a link, so there is no source info.`, "Source info (title, channel, chapters, most-replayed moments) exists for media_import_url imports.");
+    return { asset: a.name, ...src };
+  }
   if (kind === "beats") {
     const b = loadA<{ tempo: number; beats: number[] }>(a.id, "beats");
     if (!b) throw new StudioError("NOT_FOUND", `No beat analysis for ${a.name}`, 'Run analyze with include:["beats"].');
