@@ -98,8 +98,10 @@ function halves(file, t) {
 }
 
 /** Small grayscale/RGB samples of a frame for measuring effects. */
-function frameBytes(file, t, filter, size = "16:16", fmt = "gray") {
-  const r = spawnSync(FF, ["-v", "error", "-ss", String(t), "-i", file, "-frames:v", "1", "-vf", `${filter ? filter + "," : ""}scale=${size},format=${fmt}`, "-f", "rawvideo", "-"], { maxBuffer: 1 << 22 });
+// flags "area" averages pixels when shrinking a lot; the default (bicubic) aliases on fine detail
+// and that aliasing differs between ffmpeg builds.
+function frameBytes(file, t, filter, size = "16:16", fmt = "gray", flags = "") {
+  const r = spawnSync(FF, ["-v", "error", "-ss", String(t), "-i", file, "-frames:v", "1", "-vf", `${filter ? filter + "," : ""}scale=${size}${flags ? ":flags=" + flags : ""},format=${fmt}`, "-f", "rawvideo", "-"], { maxBuffer: 1 << 22 });
   return r.stdout;
 }
 const mean = (b) => b.reduce((x, y) => x + y, 0) / b.length;
@@ -437,9 +439,10 @@ await group("v0.2: transitions, zooms, speed, freeze, reverse", async () => {
   const zoomed = await render(base("zoom on", { clips: [{ id: "c", assetId: A.talk, in: 0, out: 4, snap: "frame" }], zooms: [{ start: { at: 1 }, duration: 2, scale: 2, ease: "snap" }] }));
   // While zoomed 2x at (0.5, 0.42), the frame should look like the plain frame's matching half-size crop.
   const zc = "crop=iw/2:ih/2:iw/4:ih*0.21";
-  const dMatch = absDiff(frameBytes(zoomed.output, 2, "", "32:32"), frameBytes(plain.output, 2, zc, "32:32"));
-  const dPlain = absDiff(frameBytes(zoomed.output, 2, "", "32:32"), frameBytes(plain.output, 2, "", "32:32"));
-  const d0 = absDiff(frameBytes(plain.output, 0.3, "", "32:32"), frameBytes(zoomed.output, 0.3, "", "32:32"));
+  const fb = (file, t, filter) => frameBytes(file, t, filter, "32:32", "gray", "area");
+  const dMatch = absDiff(fb(zoomed.output, 2, ""), fb(plain.output, 2, zc));
+  const dPlain = absDiff(fb(zoomed.output, 2, ""), fb(plain.output, 2, ""));
+  const d0 = absDiff(fb(plain.output, 0.3, ""), fb(zoomed.output, 0.3, ""));
   check("zoom magnifies the focus area only while active", dMatch < dPlain * 0.6 && d0 < 3, `match ${dMatch.toFixed(1)} plain ${dPlain.toFixed(1)} before ${d0.toFixed(1)}`);
 
   const punch = svc.timelineValidate(base("punch", { autoPunch: { scale: 1.3, every: "cut" }, clips: [{ id: "c", assetId: A.talk, sentences: { from: "s0001", to: "s0006" }, removeSilences: { minGap: 0.5, keepPad: 0.1 } }] }));
@@ -824,8 +827,9 @@ if (!QUICK) {
     check("media_inspect returns an image", insp.content.some((x) => x.type === "image"));
     const bad = await call("timeline_validate", { timeline: base("bad", { clips: [{ id: "c1", assetId: A.talk, in: 4, out: 2 }] }) });
     check("bad timeline → isError with JSON path", bad.isError && /clips\[0\]\.out/.test(bad.content[0].text));
-    const rs = JSON.parse((await call("render_start", { quality: "draft", wait: 45, timeline: base("mcp", { clips: [{ id: "c1", assetId: A.talk, in: 0, out: 4 }], captions: { preset: "word-pop" }, overlays: [{ id: "e", component: "Emoji", start: { at: 1 }, duration: 1, props: { emoji: "🔥", animation: "pop", x: 0.8, y: 0.3, size: 0.2 } }] }) })).content[0].text);
-    let st = rs.job;
+    const rsr = await call("render_start", { quality: "draft", wait: 45, timeline: base("mcp", { clips: [{ id: "c1", assetId: A.talk, in: 0, out: 4 }], captions: { preset: "word-pop" }, overlays: [{ id: "e", component: "Emoji", start: { at: 1 }, duration: 1, props: { emoji: "🔥", animation: "pop", x: 0.8, y: 0.3, size: 0.2 } }] }) });
+    const rs = JSON.parse(rsr.content[0].text);
+    let st = rsr.isError || !rs.job ? { status: "failed", error: rs } : rs.job;
     while (st.status !== "succeeded" && st.status !== "failed") st = JSON.parse((await call("job_status", { jobIds: [rs.jobId], wait: 30 })).content[0].text)[0];
     check("render through MCP succeeds", st.status === "succeeded", JSON.stringify(st).slice(0, 300));
     const qa = await call("qa_check", { renderId: rs.renderId, wait: 45 });
