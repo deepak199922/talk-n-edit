@@ -1,0 +1,10 @@
+{
+  "projectId": "prj_REPLACE",
+  "name": "talk-tightened-9x16",
+  "output": { "aspect": "9:16", "fps": 30, "platform": "youtube-shorts" },
+  "clips": [
+    { "id": "c1", "assetId": "ast_REPLACE", "in": 0, "out": 58.0,
+      "removeSilences": { "minGap": 0.5, "keepPad": 0.1 }, "reframe": { "mode": "auto-face" } }
+  ],
+  "captions": { "source": "transcript", "preset": "word-pop", "emphasis": "auto" }
+}

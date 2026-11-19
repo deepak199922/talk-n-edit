@@ -1,0 +1,7 @@
+{
+  "name": "Minimal",
+  "description": "Calm and clean: natural colour, simple cuts, boxed subtitles, no music or effects.",
+  "captions": { "preset": "boxed", "emphasis": "none", "position": "lower" },
+  "transition": { "type": "cut", "duration": 0.3 },
+  "notes": "No emojis, no SFX, no zooms unless asked."
+}

@@ -1,0 +1,10 @@
+{
+  "name": "Cinematic",
+  "description": "Slow and moody: teal-orange grade, vignette and grain, fade-to-black transitions, subtle slow zooms, clean subtitles.",
+  "look": { "preset": "teal-orange", "vignette": 0.5, "grain": 0.25 },
+  "transition": { "type": "fade-black", "duration": 0.6 },
+  "captions": { "preset": "clean-subtitle", "emphasis": "none", "position": "lower" },
+  "hook": { "style": "bold", "position": "center" },
+  "music": { "volume": 0.5 },
+  "notes": "Let shots breathe (4–8 s). Add slow zooms (scale 1.08–1.15 over the whole shot, ease smooth). TitleCard at start and end."
+}

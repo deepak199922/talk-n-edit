@@ -1,0 +1,43 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  scripts:
+    name: Install scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck
+        run: shellcheck install.sh scripts/setup_mac.sh
+
+  e2e:
+    name: End-to-end (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: System packages (ffmpeg with libass, speech for test videos, emoji font)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg espeak-ng fonts-noto-color-emoji
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: astral-sh/setup-uv@v5
+      - name: Build
+        run: npm ci && npm run build
+      - name: Python analysis environment
+        run: |
+          cd python
+          uv venv --python 3.12 .venv
+          uv pip install --python .venv/bin/python -r pyproject.toml
+      - name: Health check
+        run: node --disable-warning=ExperimentalWarning dist/index.js --check
+      - name: Tests
+        run: npm test

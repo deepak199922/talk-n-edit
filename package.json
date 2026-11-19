@@ -1,0 +1,33 @@
+{
+  "name": "talk-n-edit",
+  "version": "0.3.0",
+  "description": "Talk-n-Edit: an AI video editor you talk to. An MCP server + skill that lets Claude edit Reels, Shorts and TikToks on your own computer.",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=22.13"
+  },
+  "bin": {
+    "talk-n-edit": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node --disable-warning=ExperimentalWarning dist/index.js",
+    "cli": "node --disable-warning=ExperimentalWarning dist/cli.js",
+    "test": "node --disable-warning=ExperimentalWarning test/e2e.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@remotion/bundler": "4.0.545",
+    "@remotion/renderer": "4.0.545",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "remotion": "4.0.545",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.3.0",
+    "typescript": "^5.6.0"
+  }
+}

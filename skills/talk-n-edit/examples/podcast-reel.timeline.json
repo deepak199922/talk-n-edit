@@ -1,0 +1,14 @@
+{
+  "projectId": "prj_REPLACE",
+  "name": "reel-01-hook-slug",
+  "output": { "aspect": "9:16", "fps": 30, "platform": "instagram-reels" },
+  "clips": [
+    { "id": "c1", "assetId": "ast_REPLACE", "sentences": { "from": "s0042", "to": "s0051" },
+      "removeSilences": { "minGap": 0.6, "keepPad": 0.12 }, "reframe": { "mode": "auto-face" } }
+  ],
+  "overlays": [
+    { "id": "hook", "component": "HookText", "start": { "at": 0 }, "duration": 2.5,
+      "props": { "text": "Most developers make this mistake", "style": "boxed", "position": "top" } }
+  ],
+  "captions": { "source": "transcript", "preset": "karaoke-highlight", "emphasis": "auto" }
+}

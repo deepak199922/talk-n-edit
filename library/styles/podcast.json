@@ -1,0 +1,9 @@
+{
+  "name": "Podcast clips",
+  "description": "Podcast/interview clips: face-tracked crops, split screen for two-shots, karaoke captions, no flashy effects.",
+  "captions": { "preset": "karaoke-highlight", "emphasis": "auto" },
+  "removeSilences": { "minGap": 0.6, "keepPad": 0.12 },
+  "transition": { "type": "cut", "duration": 0.3 },
+  "hook": { "style": "boxed", "position": "top" },
+  "notes": "Use reframe auto-face (or split when both people talk in one shot). LowerThird with the guest's name in the first 3 s. ProgressBar across the whole clip."
+}

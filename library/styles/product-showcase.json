@@ -1,0 +1,11 @@
+{
+  "name": "Product showcase",
+  "description": "Product/promo edits: vivid look, slide transitions, callouts and arrows on features, count-ups for prices and specs.",
+  "look": { "preset": "vivid", "sharpen": 0.3 },
+  "transition": { "type": "slide-left", "duration": 0.3 },
+  "sfxOnTransitions": "sfx/swoosh-fast",
+  "captions": { "preset": "word-pop", "emphasis": "auto" },
+  "hook": { "style": "boxed", "position": "top" },
+  "music": { "volume": 0.45 },
+  "notes": "Point at each feature with Arrow or Callout. Prices and specs as CountUp (locale en-IN for rupees). End with FollowCTA."
+}

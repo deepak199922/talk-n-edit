@@ -1,0 +1,12 @@
+{
+  "name": "Clean creator",
+  "description": "Talking-head Reels/Shorts: tight pauses, jump-cut punch-ins, word-by-word captions, quick crossfades.",
+  "look": { "preset": "bright", "sharpen": 0.2 },
+  "transition": { "type": "crossfade", "duration": 0.25 },
+  "autoPunch": { "scale": 1.12, "every": "cut" },
+  "captions": { "preset": "karaoke-highlight", "emphasis": "auto", "position": "auto" },
+  "removeSilences": { "minGap": 0.45, "keepPad": 0.1 },
+  "hook": { "style": "boxed", "position": "top" },
+  "music": { "volume": 0.25 },
+  "notes": "Hook in the first second. Keep it moving: no pause longer than half a second. One emoji or callout per key point at most."
+}

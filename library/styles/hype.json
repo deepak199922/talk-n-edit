@@ -1,0 +1,13 @@
+{
+  "name": "Hype",
+  "description": "Fast, loud and punchy: word-pop captions, whip transitions with whooshes, vivid colour, bigger punch-ins.",
+  "look": { "preset": "punchy" },
+  "transition": { "type": "whip-left", "duration": 0.22 },
+  "autoPunch": { "scale": 1.18, "every": "sentence" },
+  "captions": { "preset": "word-pop", "emphasis": "auto" },
+  "sfxOnTransitions": "sfx/whoosh",
+  "removeSilences": { "minGap": 0.35, "keepPad": 0.08 },
+  "hook": { "style": "boxed", "position": "center" },
+  "music": { "volume": 0.4 },
+  "notes": "Cut every 2–4 seconds. Use Emoji pops and AnimatedTitle (pop/bounce) on numbers and claims. Speed ramp boring parts to 1.5x."
+}

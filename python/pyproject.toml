@@ -1,0 +1,17 @@
+[project]
+name = "vpt-analyze"
+version = "0.1.0"
+description = "Talk-n-Edit analysis sidecar: transcription, scenes, faces"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  "numpy<2.3",
+  # OpenCV 4.x: prebuilt for macOS 13+ (Apple Silicon) and 14+ (Intel); 5.x needs macOS 15.
+  "opencv-python-headless>=4.9,<5",
+  "opencv-python>=4.9,<5",
+  "scenedetect>=0.6.4",
+  "mlx-whisper>=0.4; sys_platform == 'darwin' and platform_machine == 'arm64'",
+  "faster-whisper>=1.1; sys_platform != 'darwin' or platform_machine != 'arm64'",
+]
+
+[tool.uv]
+package = false

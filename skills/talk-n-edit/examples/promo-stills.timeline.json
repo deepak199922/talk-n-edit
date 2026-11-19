@@ -1,0 +1,15 @@
+{
+  "projectId": "prj_REPLACE",
+  "name": "promo-20s",
+  "output": { "aspect": "9:16", "fps": 30, "platform": "instagram-reels" },
+  "clips": [
+    { "id": "p1", "assetId": "ast_PHOTO1", "duration": 4, "motion": { "type": "kenburns-in", "strength": 0.5 } },
+    { "id": "p2", "assetId": "ast_PHOTO2", "duration": 4, "motion": { "type": "kenburns-out", "strength": 0.5 }, "transitionIn": { "type": "fade-black", "duration": 0.3 } },
+    { "id": "p3", "assetId": "ast_PHOTO3", "duration": 4, "transitionIn": { "type": "fade-black", "duration": 0.3 } }
+  ],
+  "overlays": [
+    { "id": "t1", "component": "HookText", "start": { "at": 0 }, "duration": 3.5, "props": { "text": "Fresh stock just landed", "position": "center" } },
+    { "id": "end", "component": "TitleCard", "start": { "clip": "p3", "sourceTime": 0 }, "duration": 4, "props": { "title": "Order now", "subtitle": "@yourhandle" } }
+  ],
+  "audio": [ { "id": "m1", "assetId": "ast_MUSIC", "role": "music", "volume": 0.8, "fadeOut": 1.5, "loop": true } ]
+}
