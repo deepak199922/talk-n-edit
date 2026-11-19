@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { expandHome, isInside, IS_WIN, windowsProgramDirs } from "./platform.js";
 
 /** Folder this app is installed in (contains dist/, library/, python/). */
 export const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -40,19 +41,28 @@ export interface Config {
   chrome?: string;
 }
 
+/** Folders people keep videos in. Windows calls Movies "Videos", and OneDrive may hold Desktop and Documents. */
+function defaultImportRoots(): string[] {
+  const roots = ["Downloads", IS_WIN ? "Videos" : "Movies", "Desktop", "Documents", "Developer"].map((d) => path.join(HOME, d));
+  if (IS_WIN && process.env.OneDrive) for (const d of ["Desktop", "Documents", "Videos"]) roots.push(path.join(process.env.OneDrive, d));
+  return roots;
+}
+
+/**
+ * Speech model. Apple Silicon runs large-v3-turbo fast with MLX; elsewhere it runs on the CPU, where
+ * "small" is a good balance and "base" keeps older computers (under 6 GB of memory) responsive.
+ */
+function defaultWhisperModel(): string {
+  if (process.platform === "darwin" && process.arch === "arm64") return "large-v3-turbo";
+  return os.totalmem() < 6 * 1024 ** 3 ? "base" : "small";
+}
+
 const DEFAULTS: Config = {
-  importRoots: [
-    path.join(HOME, "Downloads"),
-    path.join(HOME, "Movies"),
-    path.join(HOME, "Desktop"),
-    path.join(HOME, "Documents"),
-    path.join(HOME, "Developer"),
-  ],
+  importRoots: defaultImportRoots(),
   exportDir: path.join(MEDIA_DIR, "Clips"),
   inboxDir: INBOX_DIR,
   transcriptionBackend: "auto",
-  // Apple Silicon runs large-v3-turbo fast with MLX; elsewhere (CPU) default to small.
-  whisperModel: process.platform === "darwin" && process.arch === "arm64" ? "large-v3-turbo" : "small",
+  whisperModel: defaultWhisperModel(),
   limits: { maxImportGB: 20, maxOutputMinutes: 15 },
   defaultBrandKit: "default",
 };
@@ -78,11 +88,11 @@ export function getConfig(): Config {
     fs.writeFileSync(p, JSON.stringify(DEFAULTS, null, 2));
   }
   const cfg: Config = { ...DEFAULTS, ...user, limits: { ...DEFAULTS.limits, ...(user.limits ?? {}) } };
-  cfg.importRoots = cfg.importRoots.map((r) => path.resolve(r.replace(/^~(?=$|\/)/, HOME)));
-  cfg.exportDir = path.resolve(cfg.exportDir.replace(/^~(?=$|\/)/, HOME));
-  cfg.inboxDir = path.resolve(cfg.inboxDir.replace(/^~(?=$|\/)/, HOME));
+  cfg.importRoots = cfg.importRoots.map((r) => path.resolve(expandHome(r)));
+  cfg.exportDir = path.resolve(expandHome(cfg.exportDir));
+  cfg.inboxDir = path.resolve(expandHome(cfg.inboxDir));
   // Downloads land in the Inbox, so it must always be importable.
-  if (!cfg.importRoots.some((r) => cfg.inboxDir === r || cfg.inboxDir.startsWith(r + path.sep))) cfg.importRoots.push(cfg.inboxDir);
+  if (!cfg.importRoots.some((r) => isInside(cfg.inboxDir, r))) cfg.importRoots.push(cfg.inboxDir);
   cached = cfg;
   return cfg;
 }
@@ -90,16 +100,14 @@ export function getConfig(): Config {
 /** Find a binary even when launched by Claude Desktop with a minimal PATH. */
 export function findBinary(name: string, override?: string): string {
   if (override && fs.existsSync(override)) return override;
-  const candidates = [
-    `/opt/homebrew/bin/${name}`,
-    `/usr/local/bin/${name}`,
-    `/usr/bin/${name}`,
-    ...(process.env.PATH ?? "").split(path.delimiter).map((d) => path.join(d, name)),
-  ];
+  const pathDirs = (process.env.PATH ?? process.env.Path ?? "").split(path.delimiter).map((d) => d.replace(/^"(.*)"$/, "$1")).filter(Boolean);
+  const candidates = IS_WIN
+    ? [...pathDirs, ...windowsProgramDirs()].map((d) => path.join(d, `${name}.exe`))
+    : [`/opt/homebrew/bin/${name}`, `/usr/local/bin/${name}`, `/usr/bin/${name}`, ...pathDirs.map((d) => path.join(d, name))];
   for (const c of candidates) {
     try {
-      fs.accessSync(c, fs.constants.X_OK);
-      return c;
+      fs.accessSync(c, IS_WIN ? fs.constants.F_OK : fs.constants.X_OK);
+      if (fs.statSync(c).isFile()) return c;
     } catch {
       /* next */
     }
@@ -138,7 +146,7 @@ export function ffprobeBin(): string {
 export function pythonBin(): string {
   const cfg = getConfig();
   if (cfg.python && fs.existsSync(cfg.python)) return cfg.python;
-  return path.join(PYTHON_DIR, ".venv", "bin", "python");
+  return IS_WIN ? path.join(PYTHON_DIR, ".venv", "Scripts", "python.exe") : path.join(PYTHON_DIR, ".venv", "bin", "python");
 }
 
 export const dirs = {

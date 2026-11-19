@@ -1,3 +1,4 @@
+import { ffmpegInstallHint, setupHint } from "./platform.js";
 import fs from "node:fs";
 import path from "node:path";
 import { analyzeJob, AnalysisKind, transcriptText } from "./analysis.js";
@@ -219,10 +220,10 @@ export async function doctor() {
     const f = await run(ffmpegBin(), ["-hide_banner", "-filters"], { timeoutMs: 15000 });
     const need = ["subtitles", "loudnorm", "sidechaincompress", "zoompan", "boxblur", "blackdetect", "ebur128"];
     const missing = need.filter((n) => !new RegExp(`\\s${n}\\s`).test(f.stdout));
-    if (missing.length) issues.push(`ffmpeg is missing filters: ${missing.join(", ")} (subtitles needs libass: run 'brew install ffmpeg-full', then restart Claude)`);
+    if (missing.length) issues.push(`ffmpeg is missing filters: ${missing.join(", ")} (subtitles needs libass). ${ffmpegInstallHint()}`);
     out.ffmpegFilters = missing.length ? { missing } : "all present";
   } catch (e) {
-    issues.push(`ffmpeg not found (${(e as Error).message}). Install with: brew install ffmpeg-full`);
+    issues.push(`ffmpeg not found (${(e as Error).message}). ${ffmpegInstallHint()}`);
   }
   try {
     await run(ffprobeBin(), ["-version"], { timeoutMs: 15000 });
@@ -231,7 +232,7 @@ export async function doctor() {
     issues.push("ffprobe not found (comes with ffmpeg)");
   }
   const py = pythonBin();
-  if (!fs.existsSync(py)) issues.push(`Python env missing at ${py}. Run scripts/setup_mac.sh`);
+  if (!fs.existsSync(py)) issues.push(`Python env missing at ${py}. ${setupHint()}`);
   else {
     try {
       const tmp = path.join(WORKSPACE, "tmp");
@@ -240,7 +241,7 @@ export async function doctor() {
       await run(py, [path.join(PYTHON_DIR, "vpt_analyze.py"), "doctor", "--out", o], { timeoutMs: 120000 });
       out.python = JSON.parse(fs.readFileSync(o, "utf8"));
       const ytv = (out.python as Record<string, string>).yt_dlp;
-      if (!ytv || ytv.startsWith("missing")) issues.push("yt-dlp (downloads from links) is missing: run the setup script again, then restart Claude");
+      if (!ytv || ytv.startsWith("missing")) issues.push(`yt-dlp (downloads from links) is missing. ${setupHint()}`);
     } catch (e) {
       issues.push(`Python sidecar failed: ${(e as StudioError).hint ?? (e as Error).message}`);
     }
@@ -331,7 +332,7 @@ export function openInPlayer(renderId: string) {
   if (!file || !fs.existsSync(file)) throw new StudioError("INVALID_INPUT", `Render ${renderId} has no output yet (${r.status})`);
   const cmd = process.platform === "darwin" ? "open" : process.platform === "win32" ? "explorer" : "xdg-open";
   try {
-    const child = spawn(cmd, [file], { detached: true, stdio: "ignore" });
+    const child = spawn(cmd, [file], { detached: true, stdio: "ignore", windowsHide: true });
     child.on("error", () => undefined);
     child.unref();
   } catch {

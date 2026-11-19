@@ -10,7 +10,7 @@ Thanks for helping. Bug reports, ideas and pull requests are all welcome.
 
 ```bash
 git clone https://github.com/deepak199922/talk-n-edit.git && cd talk-n-edit
-bash scripts/setup_mac.sh        # on a Mac; see README "Other systems" for Linux
+bash scripts/setup_mac.sh        # on a Mac; on Windows: powershell -ExecutionPolicy Bypass -File scripts\setup_windows.ps1; Linux: README "Other systems"
 npm run build                    # after changing src/
 npm test -- --quick              # ~6 minutes; npm test for the full suite
 ```
@@ -23,6 +23,6 @@ The [developer reference](docs/REFERENCE.md) explains the layout, tools and time
 - **Add a test** in `test/e2e.mjs` for new behaviour. Tests make their own media; don't commit videos.
 - **Keep errors helpful.** Timeline errors name the JSON path and say how to fix it.
 - **Update the skill** (`skills/talk-n-edit/`) when you add a feature Claude should know about, and the timeline spec when the format changes.
-- Run `shellcheck install.sh scripts/setup_mac.sh` if you touch the scripts.
+- Run `shellcheck install.sh scripts/setup_mac.sh` if you touch the shell scripts. Keep the PowerShell scripts plain ASCII and compatible with Windows PowerShell 5.1 (no `??`, ternaries or `&&`); CI parses and runs them on Windows.
 
 By contributing you agree your work is released under the MIT License.

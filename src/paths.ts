@@ -1,17 +1,8 @@
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { getConfig, WORKSPACE } from "./config.js";
 import { StudioError } from "./errors.js";
-
-function expand(p: string): string {
-  return p.replace(/^~(?=$|\/)/, os.homedir());
-}
-
-function isInside(child: string, parent: string): boolean {
-  const rel = path.relative(parent, child);
-  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
-}
+import { expandHome as expand, isInside } from "./platform.js";
 
 /** Resolve a user-supplied path for reading; must be inside an import root or the workspace. */
 export function resolveReadable(p: string): string {

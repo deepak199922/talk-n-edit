@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0: Windows
+
+- **Windows 10 and 11 support**, with a one-line PowerShell installer (`install.ps1`) and setup (`scripts/setup_windows.ps1`) that installs ffmpeg (with captions support), Node and uv with winget, builds everything and connects the Claude desktop app (including the Microsoft Store version).
+- Finds ffmpeg and Python where Windows keeps them (winget, Scoop, Chocolatey; `.venv\Scripts`), uses directory junctions instead of symlinks, relative LUT paths in filters, case-insensitive folder checks, and the Videos and OneDrive folders as import locations.
+- Child processes: UTF-8 for Python on every system (Hindi and emoji titles stay intact), no console windows popping up, `\r\n` output handled, and cancelling stops the whole process tree on Windows.
+- Computers with under 6 GB of memory use the lighter `base` speech model by default.
+- Link imports hint the spoken language from the title's script when the site doesn't list one (Devanagari → Hindi, Gurmukhi → Punjabi).
+- Clearer message when Chrome or Edge block reading their sign-in cookies.
+- Tests: run on Windows in CI (setup script included), Windows speech for test audio, a LUT test, zoom check stable across ffmpeg 6/8/9, MCP render check fails cleanly.
+
 ## 0.4.0: links and discovery
 
 - `media_import_url`: download from YouTube, Shorts, Twitch, Instagram, Vimeo, X and many more sites into the Inbox and import, optionally just a section (exact cuts). Keeps title, channel, chapters and YouTube's most-replayed moments (`analysis_get` kind `source`). Uses your browser's sign-in when asked.

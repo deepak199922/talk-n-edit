@@ -46,7 +46,7 @@ Jobs return a jobId: job_status can wait up to 45 s. Finals are copied to the Cl
 
 export function createServer() {
   svc.boot();
-  const server = new McpServer({ name: "talk-n-edit", version: "0.4.0" }, { instructions: INSTRUCTIONS });
+  const server = new McpServer({ name: "talk-n-edit", version: "0.5.0" }, { instructions: INSTRUCTIONS });
 
   server.registerTool(
     "system_doctor",
@@ -361,7 +361,7 @@ Returns a 4-frame preview image (or the build/render error to fix). Show the pre
 
   server.registerTool(
     "open_in_player",
-    { description: "Open a finished render in the default video player (QuickTime on a Mac) so the user can watch it.", inputSchema: { renderId: z.string() } },
+    { description: "Open a finished render in the default video player (QuickTime on a Mac, Media Player/Films & TV on Windows) so the user can watch it.", inputSchema: { renderId: z.string() } },
     wrap(async ({ renderId }) => ok(svc.openInPlayer(renderId))),
   );
 
@@ -372,7 +372,7 @@ async function main() {
   if (process.argv.includes("--paths")) {
     // Used by the setup script so both agree on the folders.
     const { WORKSPACE, getConfig } = await import("./config.js");
-    console.log(JSON.stringify({ workspace: WORKSPACE, inbox: getConfig().inboxDir, clips: getConfig().exportDir }));
+    console.log(JSON.stringify({ workspace: WORKSPACE, inbox: getConfig().inboxDir, clips: getConfig().exportDir, whisperModel: getConfig().whisperModel }));
     return;
   }
   if (process.argv.includes("--check")) {

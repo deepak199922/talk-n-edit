@@ -10,7 +10,6 @@ import type { BrandKit } from "./catalog.js";
 const REMOTION_SRC = path.join(APP_ROOT, "remotion");
 const cacheDir = () => path.join(WORKSPACE, "cache", "remotion");
 
-/** Chrome to use. On macOS Remotion downloads its own headless shell (setup does it once); on Linux use system Chrome if present. */
 /** The headless Chrome that setup downloaded into node_modules/.remotion (macOS/Windows). */
 function bundledChrome(): string | null {
   const base = path.join(APP_ROOT, "node_modules", ".remotion", "chrome-headless-shell");
@@ -77,7 +76,8 @@ export async function ensureBundle(fxNames: string[] = [], overrides: Record<str
     if (fs.existsSync(path.join(outDir, "index.html"))) return outDir;
     const entryDir = path.join(cacheDir(), `entry-${hash}`);
     fs.mkdirSync(entryDir, { recursive: true });
-    const imp = (f: string) => JSON.stringify(f.replace(/\.tsx$/, ""));
+    // Forward slashes: webpack accepts C:/... on Windows, and backslashes would need escaping.
+    const imp = (f: string) => JSON.stringify(f.replace(/\.tsx$/, "").split(path.sep).join("/"));
     const lines = [
       `import { registerRoot } from "remotion";`,
       `import { makeRoot } from ${imp(path.join(REMOTION_SRC, "Root.tsx"))};`,

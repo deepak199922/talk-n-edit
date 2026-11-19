@@ -1,9 +1,10 @@
 # Talk-n-Edit
 
-**The AI video editor you talk to.** Tell Claude what you want, in plain words, and it cuts, captions and polishes your Reels, Shorts and TikToks on your own Mac.
+**The AI video editor you talk to.** Tell Claude what you want, in plain words, and it cuts, captions and polishes your Reels, Shorts and TikToks on your own computer, Mac or Windows.
 
 [![Tests](https://github.com/deepak199922/talk-n-edit/actions/workflows/test.yml/badge.svg)](https://github.com/deepak199922/talk-n-edit/actions/workflows/test.yml)
-![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-black)
+![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon%20%7C%20Intel-black)
+![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
 ```text
@@ -28,25 +29,36 @@ No timeline to learn and no templates to fight. You direct, Claude edits, and yo
 - **You direct, it edits.** Describe the Reel you want, look at the draft, ask for changes. Claude remembers the edit and changes only what you asked.
 - **Anything you can describe.** Transitions, zooms on a specific word, freeze frames, colour looks, blur over a logo, picture-in-picture, sound effects, animated titles and emoji. If something isn't built in, Claude writes a custom animated graphic and shows you a preview first.
 - **Your language.** Word-by-word captions in English, Hindi, Punjabi and more, including Hinglish (Hindi in Roman script) and translations.
-- **Private.** Your videos never leave your Mac. Transcription, face tracking and rendering all run locally.
+- **Private.** Your videos never leave your computer. Transcription, face tracking and rendering all run locally.
 - **No per-video fees.** It uses the Claude app you already have. There are no credits or watermarks.
 - **Safe with your files.** Originals are never changed, and Talk-n-Edit never deletes anything.
 
 ## Install
 
-**You need:** a Mac (Apple Silicon recommended), the [Claude desktop app](https://claude.ai/download), about 6 GB of free space and an internet connection for the first setup.
+**You need:** the [Claude desktop app](https://claude.ai/download), about 6 GB of free space, an internet connection for the first setup, and one of:
 
-**1. Paste this into Terminal** (press ⌘ Space, type *Terminal*, press Enter):
+- a **Mac** (Apple Silicon recommended; Intel works, with slower transcription), or
+- a **Windows 10 or 11** PC (64-bit, 8 GB of memory recommended; older PCs work, just slower).
+
+**1. Run the installer.**
+
+On a **Mac**, paste this into Terminal (press ⌘ Space, type *Terminal*, press Enter):
 
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/deepak199922/talk-n-edit/main/install.sh)"
 ```
 
-It downloads Talk-n-Edit to `~/talk-n-edit` and sets everything up: ffmpeg, Node, the speech model and the Claude connector. If something is missing, it tells you exactly what to do. The first run takes 5–15 minutes, mostly downloads.
+On **Windows**, paste this into PowerShell (press the Windows key, type *PowerShell*, press Enter):
 
-**2. Restart Claude.** Quit it completely (⌘Q), then open it again.
+```powershell
+irm https://raw.githubusercontent.com/deepak199922/talk-n-edit/main/install.ps1 | iex
+```
 
-**3. Add the skill.** The skill teaches Claude how to edit well. In Claude, open **Customize → Skills → "+" → Create skill → Upload a skill** and pick `talk-n-edit-skill.zip` from your Downloads folder. The installer created it and opens Finder on it.
+It downloads Talk-n-Edit to a `talk-n-edit` folder in your home folder and sets everything up: ffmpeg, Node, the speech model and the Claude connector. On Windows it installs what's missing with winget, Windows' own installer, so you may see a few "Do you want to allow…" prompts. If something is missing, it tells you exactly what to do. The first run takes 5–15 minutes, mostly downloads.
+
+**2. Restart Claude.** Quit it completely, then open it again. On a Mac press ⌘Q. On Windows, right-click the Claude icon by the clock and choose Quit (closing the window isn't enough).
+
+**3. Add the skill.** The skill teaches Claude how to edit well. In Claude, open **Customize → Skills → "+" → Create skill → Upload a skill** and pick `talk-n-edit-skill.zip` from your Downloads folder. The installer created it and opens a window showing it.
 
 **4. Try it.** Drop a video into `Downloads/Talk-n-Edit/Inbox` and ask Claude:
 
@@ -84,16 +96,18 @@ It downloads Talk-n-Edit to `~/talk-n-edit` and sets everything up: ffmpeg, Node
 ```mermaid
 flowchart LR
   you["You: what you want, in plain words"] --> claude["Claude + Talk-n-Edit skill"]
-  claude -- "plans the edit as a timeline" --> server["Talk-n-Edit on your Mac"]
+  claude -- "plans the edit as a timeline" --> server["Talk-n-Edit on your computer"]
   server --> analyse["Transcript (Whisper), faces, shots, beats"]
   server --> render["Render (FFmpeg + Remotion) and quality check"]
   render --> clips["Clips folder"]
   clips -- "draft or final" --> you
 ```
 
-Claude decides *what* the video should be: which moments, which hook, which effects. Talk-n-Edit does the heavy lifting on your Mac: transcription, face tracking, rendering and checks. Each edit is saved as a version, so "go back to the previous one" just works.
+Claude decides *what* the video should be: which moments, which hook, which effects. Talk-n-Edit does the heavy lifting on your computer: transcription, face tracking, rendering and checks. Each edit is saved as a version, so "go back to the previous one" just works.
 
 ## Where your files go
+
+`~` is your home folder: `/Users/you` on a Mac, `C:\Users\you` on Windows.
 
 | Folder | What's in it |
 | --- | --- |
@@ -112,13 +126,16 @@ Run the same install command again. It pulls the latest version and re-runs the 
 
 | Problem | Fix |
 | --- | --- |
-| Claude doesn't seem to have the tools | Quit Claude completely (⌘Q, not just closing the window) and reopen it. Still missing? Run the install command again. |
+| Claude doesn't seem to have the tools | Quit Claude completely (⌘Q on a Mac; on Windows right-click its icon by the clock → Quit) and reopen it. Still missing? Run the install command again. |
 | You want a health check | Ask Claude: *"Run the Talk-n-Edit system doctor."* It lists anything that's wrong and how to fix it. |
-| "ffmpeg is missing filters: subtitles" | Run `brew install ffmpeg-full`, then the install command again, then restart Claude. |
+| "ffmpeg is missing filters: subtitles" | Mac: run `brew install ffmpeg-full`. Windows: run `winget install Gyan.FFmpeg`. Then run the install command again and restart Claude. |
+| Windows: "running scripts is disabled on this system" | Use the `irm … \| iex` command above (it works under any policy), or run the setup as `powershell -ExecutionPolicy Bypass -File scripts\setup_windows.ps1`. |
+| Windows: "winget is not recognized" | Install **App Installer** from the Microsoft Store (it provides winget), open a new PowerShell window, and run the install command again. |
 | A window asks to install "command line developer tools" | Click Install, wait for it to finish, then run the install command again. |
 | The transcript is in the wrong language | Tell Claude the language: *"It's in Hindi."* It re-transcribes with that setting. |
 | A link won't download | Run the install command again (it updates the downloader, since sites change often). For private, unlisted or age-restricted videos, ask Claude to *"use my Chrome sign-in"*. |
-| The first transcription is slow | The speech model downloads once (about 1.6 GB). Later runs are fast. |
+| The first transcription is slow | The speech model downloads once (about 1.6 GB on Apple Silicon, 470 MB on Windows). Later runs are faster. On Windows and Intel Macs transcription runs on the processor, so a long video takes a while; PCs with under 6 GB of memory use the lighter "base" model automatically. |
+| A link that needs your sign-in won't download on Windows | Chrome and Edge lock their cookies while open. Close the browser completely and retry, or ask Claude to use your Firefox sign-in. |
 | Animated graphics fail | Run the install command again. It downloads the small headless browser the graphics need. |
 
 Still stuck? [Open an issue](https://github.com/deepak199922/talk-n-edit/issues/new/choose) and paste the system doctor output.
@@ -128,9 +145,9 @@ Still stuck? [Open an issue](https://github.com/deepak199922/talk-n-edit/issues/
 Talk-n-Edit never deletes files, so removing it is up to you:
 
 1. In Claude, remove the skill (**Customize → Skills**).
-2. Remove the `"talk-n-edit"` entry from `~/Library/Application Support/Claude/claude_desktop_config.json` (setup left a backup copy next to it), then restart Claude.
+2. Remove the `"talk-n-edit"` entry from Claude's config file, then restart Claude. Setup left a backup copy next to it. The file is `~/Library/Application Support/Claude/claude_desktop_config.json` on a Mac and `%APPDATA%\Claude\claude_desktop_config.json` on Windows.
 3. Delete the folders `~/talk-n-edit` and `~/TalkNEdit`, and `~/Downloads/Talk-n-Edit` once you've kept the clips you want.
-4. Optional: `brew uninstall ffmpeg-full uv`, and delete the speech model in `~/.cache/huggingface/hub`.
+4. Optional: remove the tools setup installed (Mac: `brew uninstall ffmpeg-full uv`; Windows: `winget uninstall Gyan.FFmpeg astral-sh.uv`), and delete the speech model in `~/.cache/huggingface/hub`.
 
 ## FAQ
 
@@ -147,7 +164,10 @@ Any plan that runs the Claude desktop app with local connectors. Uploading the s
 Talk-n-Edit can download from links and find videos, but it doesn't decide what you may use: **you're responsible** for having the rights to what you download, edit and post, and for following each site's terms. Your own videos, Creative Commons videos and footage you have permission for are safe choices. Reposting other people's work can get it claimed or taken down.
 
 **Windows? Linux?**
-Not packaged yet. Linux works for developers (see below). Windows is on the roadmap.
+Windows 10 and 11 are supported with their own installer (see Install). Linux works for developers (see below).
+
+**Will it run on an older PC?**
+Yes, more slowly. Transcription and rendering run on your processor. On a PC with under 6 GB of memory, Talk-n-Edit picks a lighter speech model automatically. Short clips (under 10 minutes) are the comfortable range on older machines.
 
 **Can I use it with Claude Code or another MCP client?**
 Yes. It's a standard MCP server. For example: `claude mcp add talk-n-edit -- node ~/talk-n-edit/dist/index.js`

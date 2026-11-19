@@ -1,3 +1,4 @@
+import { setupHint } from "./platform.js";
 import fs from "node:fs";
 import path from "node:path";
 import { dirs, getConfig, PYTHON_DIR, pythonBin } from "./config.js";
@@ -43,7 +44,7 @@ async function sidecar(task: string, inp: string, out: string, params: object, c
   const script = path.join(PYTHON_DIR, "vpt_analyze.py");
   const py = pythonBin();
   if (!fs.existsSync(py)) {
-    throw new StudioError("DEPENDENCY_MISSING", `Python environment not found at ${py}`, "Run scripts/setup_mac.sh, or system_doctor with fix:true.");
+    throw new StudioError("DEPENDENCY_MISSING", `Python environment not found at ${py}`, setupHint());
   }
   await run(py, [script, task, "--in", inp, "--out", out, "--params", JSON.stringify(params)], {
     signal: ctx.signal,

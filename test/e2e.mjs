@@ -125,11 +125,15 @@ async function render(tl, quality = "draft") {
 
 // ------------------------------------------------------------------ fixtures
 const filters = spawnSync(FF, ["-hide_banner", "-filters"], { encoding: "utf8" }).stdout;
-// VS_TEST_SPEECH=flite|say|espeak forces one speech source (default: the first one available).
+// VS_TEST_SPEECH=flite|say|espeak|sapi forces one speech source (default: the first one available).
 const want = process.env.VS_TEST_SPEECH;
+const WIN = process.platform === "win32";
+const onPath = (cmd) => spawnSync(WIN ? "where" : "which", [cmd], { windowsHide: true }).status === 0;
 const hasFlite = (!want || want === "flite") && / flite /.test(filters);
-const hasSay = (!want || want === "say") && spawnSync("which", ["say"]).status === 0;
-const hasEspeak = (!want || want === "espeak") && spawnSync("which", ["espeak-ng"]).status === 0;
+const hasSay = (!want || want === "say") && !WIN && onPath("say");
+const hasEspeak = (!want || want === "espeak") && onPath("espeak-ng");
+// Windows' built-in voice (System.Speech), through PowerShell.
+const hasSapi = (!want || want === "sapi") && WIN;
 function speak(text, out) {
   if (hasFlite) return ff(["-f", "lavfi", "-i", `flite=text='${text.replace(/'/g, "")}':voice=slt`, "-ar", "48000", "-ac", "2", out]);
   if (hasSay) {
@@ -144,7 +148,14 @@ function speak(text, out) {
     if (r.status !== 0) throw new Error("espeak-ng failed");
     return ff(["-i", raw, "-ar", "48000", "-ac", "2", out]);
   }
-  throw new Error("No speech synthesizer (ffmpeg flite, macOS say or espeak-ng) available for fixtures");
+  if (hasSapi) {
+    const raw = out.replace(/\.wav$/, ".sapi.wav");
+    const ps = "Add-Type -AssemblyName System.Speech; $s = New-Object System.Speech.Synthesis.SpeechSynthesizer; $s.Rate = 1; $s.SetOutputToWaveFile($env:TNE_WAV); $s.Speak($env:TNE_TEXT); $s.Dispose()";
+    const r = spawnSync("powershell", ["-NoProfile", "-NonInteractive", "-Command", ps], { env: { ...process.env, TNE_WAV: raw, TNE_TEXT: text }, windowsHide: true, encoding: "utf8" });
+    if (r.status !== 0) throw new Error(`Windows speech failed: ${r.stderr}`);
+    return ff(["-i", raw, "-ar", "48000", "-ac", "2", out]);
+  }
+  throw new Error("No speech synthesizer (ffmpeg flite, macOS say, espeak-ng or Windows speech) available for fixtures");
 }
 function speechTrack(lines, gaps, out) {
   const parts = [];
@@ -165,7 +176,7 @@ function speechTrack(lines, gaps, out) {
 }
 
 console.log(`Workspace: ${process.env.TALK_N_EDIT_HOME}\nFixtures:  ${FIX}`);
-console.log(`Speech source: ${hasFlite ? "ffmpeg flite" : hasSay ? "macOS say" : hasEspeak ? "espeak-ng" : "none"}`);
+console.log(`Speech source: ${hasFlite ? "ffmpeg flite" : hasSay ? "macOS say" : hasEspeak ? "espeak-ng" : hasSapi ? "Windows speech" : "none"}`);
 const LINES = [
   "Most developers make the same mistake when they start a new project.",
   "They write code before they understand the problem.",
@@ -255,12 +266,15 @@ await group("project + import", async () => {
   check("audio file classified as audio", byName["music.wav"].kind === "audio");
   check("images classified as image", byName["logo-alpha.png"].kind === "image" && byName["big-photo.jpg"].kind === "image");
   check("VFR detected", byName["vfr.mp4"].vfr === true, JSON.stringify(byName["vfr.mp4"]));
-  await expectError("import outside import roots is refused", () => svc.mediaImport(P, ["/etc/hosts"]), "PATH_DENIED");
+  // A system folder and a file in it that exist on every machine.
+  const [sysDir, sysFile] = WIN ? [process.env.SystemRoot ?? "C:\\Windows", "win.ini"] : ["/etc", "hosts"];
+  await expectError("import outside import roots is refused", () => svc.mediaImport(P, [path.join(sysDir, sysFile)]), "PATH_DENIED");
   const link = path.join(FIX, "sneaky-link");
   try {
-    fs.symlinkSync("/etc", link);
+    // Windows: a directory junction (no admin rights needed), which escapes the same way.
+    fs.symlinkSync(sysDir, link, WIN ? "junction" : "dir");
   } catch {}
-  await expectError("symlink escaping the import root is refused", () => svc.mediaImport(P, [path.join(link, "hosts")]), "PATH_DENIED");
+  await expectError("symlink escaping the import root is refused", () => svc.mediaImport(P, [path.join(link, sysFile)]), "PATH_DENIED");
   await expectError("missing file is reported", () => svc.mediaImport(P, [path.join(FIX, "nope.mp4")]), "NOT_FOUND");
   const insp = await svc.mediaInspect(A.talk, true);
   check("media_inspect returns a contact sheet", insp.sheet && fs.statSync(insp.sheet.path).size > 5000, insp.sheet?.path);
@@ -473,6 +487,15 @@ await group("v0.2: looks, masks, layers, audio", async () => {
   let maxDev = 0;
   for (let i = 0; i < rgb.length; i += 3) maxDev = Math.max(maxDev, Math.abs(rgb[i] - rgb[i + 1]), Math.abs(rgb[i + 1] - rgb[i + 2]));
   check("black & white look has no colour", maxDev < 14, maxDev);
+
+  // A LUT file from library/luts (an identity LUT: the picture must stay the same).
+  const lutName = "_e2e_identity.cube";
+  fs.writeFileSync(path.join(ROOT, "library", "luts", lutName), "LUT_3D_SIZE 2\n0 0 0\n1 0 0\n0 1 0\n1 1 0\n0 0 1\n1 0 1\n0 1 1\n1 1 1\n");
+  const sq = { output: { aspect: "1:1", fps: 30, platform: "generic" } };
+  const noLut = await render(base("no lut", { ...sq, clips: [{ id: "c", assetId: A.square25, in: 0, out: 1, snap: "frame" }] }));
+  const withLut = await render(base("identity lut", { ...sq, look: { lut: lutName }, clips: [{ id: "c", assetId: A.square25, in: 0, out: 1, snap: "frame" }] }));
+  const lutDiff = absDiff(frameBytes(withLut.output, 0.5, "", "32:32", "rgb24", "area"), frameBytes(noLut.output, 0.5, "", "32:32", "rgb24", "area"));
+  check("LUT from library/luts applies (identity keeps the picture)", lutDiff < 3, lutDiff.toFixed(2));
 
   const masked = await render(base("masks", { output: { aspect: "16:9", fps: 30, platform: "generic" }, clips: [{ id: "c", assetId: A.talk, in: 0, out: 3, snap: "frame" }],
     masks: [{ id: "box", start: { at: 0 }, duration: 3, rect: { x: 0.45, y: 0.45, w: 0.1, h: 0.1 }, type: "box", color: "#FF0000" },
@@ -805,7 +828,8 @@ if (!QUICK) {
     const { Client } = await import(path.join(ROOT, "node_modules/@modelcontextprotocol/sdk/dist/esm/client/index.js"));
     const { StdioClientTransport } = await import(path.join(ROOT, "node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js"));
     // Claude Desktop starts servers with a minimal PATH: make sure binaries are still found.
-    const env = { ...process.env, PATH: "/usr/bin:/bin" };
+    const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => k.toUpperCase() !== "PATH"));
+    env.PATH = WIN ? `${process.env.SystemRoot ?? "C:\\Windows"}\\System32;${process.env.SystemRoot ?? "C:\\Windows"}` : "/usr/bin:/bin";
     // …and in "/" as their working folder.
     const t = new StdioClientTransport({ command: process.execPath, args: ["--disable-warning=ExperimentalWarning", path.join(ROOT, "dist/index.js")], env, cwd: "/" });
     const c = new Client({ name: "e2e", version: "1" });

@@ -1,5 +1,7 @@
 import { spawn } from "node:child_process";
+import { StringDecoder } from "node:string_decoder";
 import { StudioError } from "./errors.js";
+import { childEnv, IS_WIN } from "./platform.js";
 
 export interface RunOptions {
   cwd?: string;
@@ -26,9 +28,14 @@ export function run(cmd: string, args: string[], opts: RunOptions = {}): Promise
     if (opts.signal?.aborted) return reject(new StudioError("CANCELLED", "Cancelled"));
     const child = spawn(cmd, args, {
       cwd: opts.cwd,
-      env: opts.env ?? process.env,
+      env: childEnv(opts.env),
       stdio: ["ignore", "pipe", "pipe"],
+      // No console window flashing up on Windows for every ffmpeg/Python run.
+      windowsHide: true,
     });
+    // Decode across chunk boundaries so multi-byte characters (Hindi, emoji) never get split.
+    const outDec = new StringDecoder("utf8");
+    const errDec = new StringDecoder("utf8");
     let stdout = "";
     let stderr = "";
     let outBuf = "";
@@ -37,6 +44,11 @@ export function run(cmd: string, args: string[], opts: RunOptions = {}): Promise
     const kill = () => {
       if (killed) return;
       killed = true;
+      if (IS_WIN && child.pid) {
+        // Windows has no signals: end the whole tree (yt-dlp → ffmpeg, Remotion → Chrome).
+        spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore", windowsHide: true }).on("error", () => child.kill());
+        return;
+      }
       child.kill("SIGTERM");
       setTimeout(() => child.kill("SIGKILL"), 5000).unref();
     };
@@ -45,19 +57,19 @@ export function run(cmd: string, args: string[], opts: RunOptions = {}): Promise
     const timer = opts.timeoutMs ? setTimeout(kill, opts.timeoutMs) : null;
 
     child.stdout.on("data", (d: Buffer) => {
-      const s = d.toString();
+      const s = outDec.write(d);
       stdout = (stdout + s).slice(-KEEP);
       if (opts.onStdoutLine) {
         outBuf += s;
         let i;
         while ((i = outBuf.indexOf("\n")) >= 0) {
-          opts.onStdoutLine(outBuf.slice(0, i));
+          opts.onStdoutLine(outBuf.slice(0, i).replace(/\r$/, ""));
           outBuf = outBuf.slice(i + 1);
         }
       }
     });
     child.stderr.on("data", (d: Buffer) => {
-      const s = d.toString();
+      const s = errDec.write(d);
       stderr = (stderr + s).slice(-KEEP);
       if (opts.onStderrLine) {
         errBuf += s;
@@ -78,8 +90,11 @@ export function run(cmd: string, args: string[], opts: RunOptions = {}): Promise
       opts.signal?.removeEventListener("abort", onAbort);
       if (timer) clearTimeout(timer);
       if (opts.signal?.aborted) return reject(new StudioError("CANCELLED", "Cancelled"));
+      stdout += outDec.end();
+      stderr += errDec.end();
+      if (opts.onStdoutLine && outBuf) opts.onStdoutLine(outBuf.replace(/\r$/, ""));
       if (code !== 0) {
-        const tail = stderr.trim().split("\n").slice(-20).join("\n");
+        const tail = stderr.trim().split(/\r?\n/).slice(-20).join("\n");
         return reject(
           new StudioError("ENGINE_FAILED", `${opts.label ?? cmd} exited with code ${code}${killed ? " (timed out)" : ""}`, tail),
         );

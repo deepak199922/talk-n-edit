@@ -4,6 +4,7 @@ import { buildAss } from "./ass.js";
 import { dirs, getConfig, LIBRARY } from "./config.js";
 import { now } from "./db.js";
 import { atempoChain, lookFilters, voiceFilters, zoomExpr } from "./effects.js";
+import { linkDir } from "./platform.js";
 import { StudioError } from "./errors.js";
 import { ffmpeg, r3 } from "./ffmpeg.js";
 import { probe } from "./ffprobe.js";
@@ -385,9 +386,10 @@ export async function renderJob(input: RenderJobInput, ctx: JobContext) {
   if (ass) {
     assFile = path.join(dir, "captions.ass");
     fs.writeFileSync(assFile, ass);
-    const fontsLink = path.join(dir, "fonts");
-    if (!fs.existsSync(fontsLink)) fs.symlinkSync(path.join(LIBRARY, "fonts"), fontsLink);
+    linkDir(path.join(LIBRARY, "fonts"), path.join(dir, "fonts"));
   }
+  // LUT looks refer to "luts/<name>" relative to this folder.
+  if (fs.existsSync(path.join(LIBRARY, "luts"))) linkDir(path.join(LIBRARY, "luts"), path.join(dir, "luts"));
 
   // 1. Animated graphics.
   const graphicsOverlays = res.overlays.filter((o) => o.engine === "remotion");

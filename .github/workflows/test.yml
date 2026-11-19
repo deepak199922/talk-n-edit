@@ -41,3 +41,34 @@ jobs:
         run: node --disable-warning=ExperimentalWarning dist/index.js --check
       - name: Tests
         run: npm test
+
+  windows:
+    name: End-to-end (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: PowerShell scripts parse (Windows PowerShell 5.1)
+        shell: powershell
+        run: |
+          foreach ($f in @('install.ps1', 'scripts\setup_windows.ps1')) {
+            $errs = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $f), [ref]$null, [ref]$errs) | Out-Null
+            if ($errs) { $errs | ForEach-Object { Write-Host "$f : $_" }; exit 1 }
+          }
+      - name: ffmpeg (with libass, for captions)
+        run: choco install ffmpeg -y --no-progress
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: astral-sh/setup-uv@v5
+      - name: Setup script (the same one users run)
+        shell: powershell
+        env:
+          CI: "true"
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\setup_windows.ps1
+      - name: Health check
+        run: node --disable-warning=ExperimentalWarning dist/index.js --check
+      - name: Tests
+        run: npm test

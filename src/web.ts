@@ -1,3 +1,4 @@
+import { setupHint } from "./platform.js";
 import fs from "node:fs";
 import path from "node:path";
 import { ffmpegBin, getConfig, pythonBin, WORKSPACE } from "./config.js";
@@ -28,7 +29,10 @@ function ytdlp(extra: string[], cookiesFromBrowser?: Browser): string[] {
 function friendly(e: unknown, url: string): StudioError {
   const se = e as StudioError;
   const tail = `${se.hint ?? ""} ${se.message ?? ""}`;
-  if (/No module named yt_dlp/.test(tail)) return new StudioError("DEPENDENCY_MISSING", "The downloader (yt-dlp) isn't installed yet.", "Run the setup script again (it installs and updates yt-dlp), then restart Claude.");
+  if (/No module named yt_dlp/.test(tail)) return new StudioError("DEPENDENCY_MISSING", "The downloader (yt-dlp) isn't installed yet.", setupHint());
+  // Windows: Chrome and Edge lock (and app-bind encrypt) their cookie database while open.
+  if (/Could not copy .*cookie database|Failed to decrypt|cookie.*(locked|permission)/i.test(tail))
+    return new StudioError("ENGINE_FAILED", "Couldn't read that browser's sign-in cookies.", "Close the browser completely and retry, or use cookiesFromBrowser \"firefox\" (Chrome and Edge on Windows often block this).");
   if (/Unsupported URL/i.test(tail)) return new StudioError("INVALID_INPUT", `That link isn't a video page yt-dlp understands: ${url}`, "Use the link of a single video (or a channel/playlist for discover_videos).");
   if (/Sign in to confirm|login required|cookies|private video|members-only|age/i.test(tail))
     return new StudioError("ENGINE_FAILED", "The site wants you to be signed in for this video.", 'Retry with cookiesFromBrowser (e.g. "chrome" or "safari") to use your browser\'s sign-in.');
@@ -229,13 +233,22 @@ export async function urlImportJob(input: UrlImportInput, ctx: JobContext) {
     downloaded: file,
     assets: res.assets,
     source: { ...source, description: source.description?.slice(0, 300) },
-    hint:
-      source.language && !/^en\b/i.test(source.language)
-        ? `Spoken language looks like "${source.language.split(/[-_]/)[0]}": pass it to analyze as language.`
-        : source.mostReplayed
-          ? "mostReplayed lists the moments viewers rewatched most (times are in the downloaded file)."
-          : undefined,
+    hint: languageHint(source),
   };
+}
+
+/**
+ * Tell Claude which language to transcribe in. YouTube often doesn't list a language (Bollywood clip
+ * channels rarely do), so fall back to the script of the title: Devanagari → Hindi, Gurmukhi → Punjabi.
+ */
+export function languageHint(source: Pick<SourceInfo, "language" | "title" | "mostReplayed">): string | undefined {
+  let lang = source.language && !/^en\b/i.test(source.language) ? source.language.split(/[-_]/)[0] : undefined;
+  if (!source.language) {
+    if (/[\u0A00-\u0A7F]/.test(source.title ?? "")) lang = "pa";
+    else if (/[\u0900-\u097F]/.test(source.title ?? "")) lang = "hi";
+  }
+  if (lang) return `Spoken language looks like "${lang}": pass it to analyze as language.`;
+  return source.mostReplayed ? "mostReplayed lists the moments viewers rewatched most (times are in the downloaded file)." : undefined;
 }
 
 /** Look at a link without downloading: whole-video chapters, most-replayed moments, length, views, thumbnail. */

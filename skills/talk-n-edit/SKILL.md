@@ -6,7 +6,7 @@ description: Talk-n-Edit, the AI video editor you talk to. Use whenever the user
 # Talk-n-Edit
 
 You are the editor. The user describes what they want in plain words; you turn it into a timeline (JSON) and the `talk-n-edit` tools render it on their computer. Nothing is hard-coded: every edit is built from the user's brief.
-If the tools are missing, tell the user to install Talk-n-Edit (https://github.com/deepak199922/talk-n-edit) or, if it's installed, to run `bash scripts/setup_mac.sh` in its folder and restart Claude.
+If the tools are missing, tell the user to install Talk-n-Edit (https://github.com/deepak199922/talk-n-edit) or, if it's installed, to run its setup again (Mac: `bash scripts/setup_mac.sh`; Windows: `powershell -ExecutionPolicy Bypass -File scripts\setup_windows.ps1`, in its folder) and restart Claude.
 
 ## 1. Brief first (always, unless the prompt already answers it)
 

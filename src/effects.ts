@@ -68,7 +68,11 @@ export function lookFilters(look?: Look): string[] {
   if (look.lut) {
     const p = path.join(LIBRARY, "luts", path.basename(look.lut));
     if (!fs.existsSync(p)) throw new StudioError("INVALID_INPUT", `LUT not found: ${look.lut}`, "Put .cube files in library/luts (catalog_list luts).", "look.lut");
-    f.push(`lut3d=file=${p.replace(/\\/g, "/").replace(/:/g, "\\\\:").replace(/'/g, "")}`);
+    // Relative to the render folder (which links library/luts as "luts"): no drive letters or
+    // backslashes to escape in the filter graph, so Windows paths work too.
+    const name = path.basename(look.lut);
+    if (/['\\:;,\[\]]/.test(name)) throw new StudioError("INVALID_INPUT", `Rename the LUT file without quotes, colons, commas, semicolons or brackets: ${name}`, undefined, "look.lut");
+    f.push(`lut3d=file='luts/${name}'`);
   }
   if (look.sharpen) f.push(`unsharp=5:5:${r4(look.sharpen * 1.5)}`);
   if (look.blur) f.push(`boxblur=${Math.max(1, Math.round(look.blur * 20))}:1`);
@@ -144,7 +148,7 @@ export function voiceFilters(fx?: { denoise?: boolean; enhance?: boolean }): str
 // ---------------------------------------------------------------- library sounds
 export function librarySound(ref: string): string {
   const clean = ref.replace(/\\/g, "/").replace(/^\/+/, "");
-  if (clean.includes("..")) throw new StudioError("INVALID_INPUT", `Bad library path ${ref}`);
+  if (clean.includes("..") || clean.includes(":")) throw new StudioError("INVALID_INPUT", `Bad library path ${ref}`);
   const base = path.join(LIBRARY, clean);
   for (const ext of ["", ".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg"]) {
     if (fs.existsSync(base + ext) && fs.statSync(base + ext).isFile()) return base + ext;

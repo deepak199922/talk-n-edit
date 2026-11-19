@@ -11,6 +11,8 @@
 | `library/` | Fonts, face model, sound effects, built-in styles, LUTs, brand kits |
 | `skills/talk-n-edit/` | The Claude skill: how to run a brief, build edits, review and revise |
 | `scripts/setup_mac.sh` | Mac setup and Claude Desktop connector (re-runnable) |
+| `scripts/setup_windows.ps1` | Windows setup (winget) and Claude Desktop connector (re-runnable) |
+| `install.sh`, `install.ps1` | One-line installers for Mac and Windows: download or update, then run the setup |
 | `install.sh` | One-line installer: clone or update, then setup |
 | `test/e2e.mjs` | End-to-end tests; makes its own test videos |
 
@@ -37,10 +39,10 @@ Full field list: [skills/talk-n-edit/references/timeline-spec.md](../skills/talk
 | `importRoots` | Downloads, Movies, Desktop, Documents, Developer (folders media may be imported from) |
 | `exportDir` | `~/Downloads/Talk-n-Edit/Clips` |
 | `inboxDir` | `~/Downloads/Talk-n-Edit/Inbox` (downloads from links are saved here; always importable) |
-| `whisperModel` | `large-v3-turbo` on Apple Silicon, `small` elsewhere |
+| `whisperModel` | `large-v3-turbo` on Apple Silicon; elsewhere `small`, or `base` with under 6 GB of memory |
 | `transcriptionBackend` | `auto` (`mlx` or `faster-whisper`) |
 | `limits` | `{ "maxImportGB": 20, "maxOutputMinutes": 15 }` |
-| `ffmpeg`, `ffprobe`, `python`, `chrome` | Auto-detected; set a path to override |
+| `ffmpeg`, `ffprobe`, `python`, `chrome` | Auto-detected (on Windows also in winget, Scoop and Chocolatey folders); set a path to override |
 
 Environment: `TALK_N_EDIT_HOME` moves the working folder. Installs from before the rename keep using `~/VideoStudio` and `~/Downloads/Video Studio`.
 
