@@ -15,10 +15,12 @@ import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const QUICK = process.argv.includes("--quick");
+// import() needs a file:// URL for absolute paths (on Windows a bare "D:\\..." is read as a URL scheme).
+const load = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href);
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "vs e2e "));
 const FIX = path.join(TMP, "fixtures");
 const ODD = path.join(FIX, "Odd Folder (x)");
@@ -41,10 +43,10 @@ fs.writeFileSync(
   ),
 );
 
-const svc = await import(path.join(ROOT, "dist/service.js"));
-const config = await import(path.join(ROOT, "dist/config.js"));
-const db = await import(path.join(ROOT, "dist/db.js"));
-const jobs = await import(path.join(ROOT, "dist/jobs.js"));
+const svc = await load("dist/service.js");
+const config = await load("dist/config.js");
+const db = await load("dist/db.js");
+const jobs = await load("dist/jobs.js");
 svc.boot();
 const FF = config.ffmpegBin();
 const FP = config.ffprobeBin();
@@ -441,7 +443,7 @@ if (A.face) {
 
 
 await group("v0.2: transitions, zooms, speed, freeze, reverse", async () => {
-  const types = (await import(path.join(ROOT, "dist/schema/timeline.js"))).TRANSITIONS.filter((t) => t !== "cut");
+  const types = (await load("dist/schema/timeline.js")).TRANSITIONS.filter((t) => t !== "cut");
   const clips = types.map((t, i) => ({ id: `t${i}`, assetId: A.square25, in: (i % 10) * 1.5, out: (i % 10) * 1.5 + 1.2, snap: "frame", ...(i ? { transitionIn: { type: t, duration: 0.3 } } : {}) }));
   clips.push({ id: "last", assetId: A.square25, in: 0, out: 1.2, snap: "frame", transitionIn: { type: types[0], duration: 0.3 } });
   const all = await render(base("all transitions", { output: { aspect: "1:1", fps: 30, platform: "generic" }, clips }));
@@ -479,7 +481,7 @@ await group("v0.2: transitions, zooms, speed, freeze, reverse", async () => {
 });
 
 await group("v0.2: looks, masks, layers, audio", async () => {
-  const looks = (await import(path.join(ROOT, "dist/schema/timeline.js"))).LOOK_PRESETS;
+  const looks = (await load("dist/schema/timeline.js")).LOOK_PRESETS;
   const lk = await render(base("all looks", { output: { aspect: "1:1", fps: 30, platform: "generic" }, clips: looks.map((l, i) => ({ id: `l${i}`, assetId: A.square25, in: i * 0.5, out: i * 0.5 + 0.6, snap: "frame", look: { preset: l, vignette: 0.3, grain: 0.2, sharpen: 0.2, warmth: 0.3 } })) }));
   check(`all ${looks.length} look presets render`, lk.qa.fail === 0);
   const bw = await render(base("bw", { output: { aspect: "1:1", fps: 30, platform: "generic" }, look: { preset: "bw" }, clips: [{ id: "c", assetId: A.square25, in: 0, out: 2, snap: "frame" }] }));
@@ -668,7 +670,7 @@ await group("links: import from a URL, discovery helpers", async () => {
   check("not a link → INVALID_INPUT", err(() => svc.mediaImportUrl(P2.projectId, "my video.mp4"))?.code === "INVALID_INPUT");
   check("end before start → INVALID_INPUT", err(() => svc.mediaImportUrl(P2.projectId, "https://example.com/v", { start: 9, end: 3 }))?.code === "INVALID_INPUT");
 
-  const web = await import(path.join(ROOT, "dist/web.js"));
+  const web = await load("dist/web.js");
   const t = (d) => web.discoverTarget(d).target;
   check("discover: YouTube search", t({ query: "podcast clips" }) === "ytsearch10:podcast clips");
   check("discover: newest first", t({ query: "x", sort: "newest", count: 5 }) === "ytsearchdate5:x");
@@ -825,8 +827,8 @@ if (!QUICK) {
   });
 
   await group("MCP protocol (as Claude Desktop sees it)", async () => {
-    const { Client } = await import(path.join(ROOT, "node_modules/@modelcontextprotocol/sdk/dist/esm/client/index.js"));
-    const { StdioClientTransport } = await import(path.join(ROOT, "node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js"));
+    const { Client } = await load("node_modules/@modelcontextprotocol/sdk/dist/esm/client/index.js");
+    const { StdioClientTransport } = await load("node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js");
     // Claude Desktop starts servers with a minimal PATH: make sure binaries are still found.
     const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => k.toUpperCase() !== "PATH"));
     env.PATH = WIN ? `${process.env.SystemRoot ?? "C:\\Windows"}\\System32;${process.env.SystemRoot ?? "C:\\Windows"}` : "/usr/bin:/bin";
