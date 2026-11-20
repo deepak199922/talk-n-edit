@@ -24,6 +24,8 @@ No timeline to learn and no templates to fight. You direct, Claude edits, and yo
 
 <!-- DEMO VIDEO: add a "## See it in action" section here once a demo made only from your own or royalty-free footage is ready (upload it in GitHub's editor so it plays inline). Never use other people's videos in the demo. -->
 
+https://github.com/user-attachments/assets/8b431e8a-885f-43b5-ba69-64d8c707d2d9
+
 ---
 
 ## Why Talk-n-Edit
