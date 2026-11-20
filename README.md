@@ -97,7 +97,7 @@ It downloads Talk-n-Edit to a `talk-n-edit` folder in your home folder and sets 
 | **Effects** | 22 transitions, keyframed zooms and punch-ins, 14 colour looks plus your own LUTs, blur/pixelate masks, picture-in-picture and B-roll |
 | **Graphics** | Animated titles, emoji, arrows, callouts, number count-ups (₹2,00,000 style), progress bar, follow/subscribe button, confetti, checklists, plus custom graphics on request |
 | **Audio** | Your music, ducked under speech automatically; 11 built-in sound effects; voice clean-up; loudness set for Instagram and YouTube (−14 LUFS) |
-| **Links and discovery** | For your own videos, or ones you have permission to use: import from a link (YouTube, Shorts, Twitch, Instagram, Vimeo, X and many more), or just part of a long video; keeps chapters and YouTube's most-replayed moments so Claude can jump to the best bits; find videos by search, channel or Twitch top clips, shown with thumbnails |
+| **Links and discovery** | For your own videos, or ones you have permission to use: import from a YouTube, Shorts or Twitch link, or just part of a long video (other sites that yt-dlp supports may work too, often only with your browser sign-in); keeps chapters and YouTube's most-replayed moments so Claude can jump to the best bits; find videos by search, channel or Twitch top clips, shown with thumbnails |
 | **Quality checks** | Every final is checked for black frames, dead air, loudness, hook timing and caption placement before you get it |
 | **Styles** | Clean creator, hype, cinematic, podcast, minimal, product showcase, and your own saved styles |
 
