@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1
+
+- Fixed: link_info, link imports and discover_videos could fail with "not valid JSON" on long YouTube videos (especially signed in): yt-dlp's video details are now read in full instead of only the last 200 KB.
+- If yt-dlp's output still can't be read, its own error is shown instead of a JSON error.
+- YouTube's "confirm you're not a bot" check gets its own message: it's about the network (VPN, shared or busy connection), so it suggests switching network or waiting, not only signing in.
+
 ## 0.5.0: Windows
 
 - **Windows 10 and 11 support**, with a one-line PowerShell installer (`install.ps1`) and setup (`scripts/setup_windows.ps1`) that installs ffmpeg (with captions support), Node and uv with winget, builds everything and connects the Claude desktop app (including the Microsoft Store version).

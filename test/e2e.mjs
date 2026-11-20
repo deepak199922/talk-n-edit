@@ -671,6 +671,21 @@ await group("links: import from a URL, discovery helpers", async () => {
   check("end before start → INVALID_INPUT", err(() => svc.mediaImportUrl(P2.projectId, "https://example.com/v", { start: 9, end: 3 }))?.code === "INVALID_INPUT");
 
   const web = await load("dist/web.js");
+  const proc = await load("dist/proc.js");
+
+  // yt-dlp -J for a YouTube video can be several hundred KB: data output must come back whole.
+  const big = await proc.run(process.execPath, ["-e", "process.stdout.write(JSON.stringify({ pad: 'x'.repeat(300000), ok: true }))"], { keepAllStdout: true });
+  let bigOk = false;
+  try {
+    bigOk = JSON.parse(big.stdout).ok === true;
+  } catch {}
+  check("300 KB of program data is read in full", bigOk, big.stdout.length);
+  const bot = "ERROR: [youtube] mh7X6tQ4jJs: Sign in to confirm you\u2019re not a bot. Use --cookies-from-browser or --cookies for the authentication.";
+  const bot1 = web.friendly(new Error(bot), "https://youtu.be/x");
+  const bot2 = web.friendly(new Error(bot), "https://youtu.be/x", "chrome");
+  check("YouTube bot check gets its own message", /isn't a bot/.test(bot1.message) && /cookiesFromBrowser/.test(bot1.hint), bot1.message);
+  check("bot check with a sign-in already used suggests another network", !/First retry/.test(bot2.hint) && /VPN|network/.test(bot2.hint), bot2.hint);
+
   const t = (d) => web.discoverTarget(d).target;
   check("discover: YouTube search", t({ query: "podcast clips" }) === "ytsearch10:podcast clips");
   check("discover: newest first", t({ query: "x", sort: "newest", count: 5 }) === "ytsearchdate5:x");

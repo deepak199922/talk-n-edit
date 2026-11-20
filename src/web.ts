@@ -26,7 +26,26 @@ function ytdlp(extra: string[], cookiesFromBrowser?: Browser): string[] {
   return [...args, ...extra];
 }
 
-function friendly(e: unknown, url: string): StudioError {
+/**
+ * Run yt-dlp for its JSON (-J). The whole output is kept (a YouTube video's info can be several
+ * hundred KB) and, if it still isn't JSON, yt-dlp's own message is reported instead of a parse error.
+ */
+async function ytdlpJson(py: string, args: string[], cookiesFromBrowser: Browser | undefined, url: string, signal?: AbortSignal): Promise<any> {
+  let r;
+  try {
+    r = await run(py, ytdlp(args, cookiesFromBrowser), { signal, timeoutMs: 180_000, label: "yt-dlp", keepAllStdout: true });
+  } catch (e) {
+    throw friendly(e, url, cookiesFromBrowser);
+  }
+  try {
+    return JSON.parse(r.stdout);
+  } catch {
+    const said = `${r.stderr}\n${r.stdout.slice(0, 2000)}`.trim().split(/\r?\n/).slice(-12).join("\n");
+    throw friendly(new StudioError("ENGINE_FAILED", "yt-dlp didn't return the video's details.", said || "It printed nothing."), url, cookiesFromBrowser);
+  }
+}
+
+export function friendly(e: unknown, url: string, cookiesFromBrowser?: Browser): StudioError {
   const se = e as StudioError;
   const tail = `${se.hint ?? ""} ${se.message ?? ""}`;
   if (/No module named yt_dlp/.test(tail)) return new StudioError("DEPENDENCY_MISSING", "The downloader (yt-dlp) isn't installed yet.", setupHint());
@@ -34,6 +53,15 @@ function friendly(e: unknown, url: string): StudioError {
   if (/Could not copy .*cookie database|Failed to decrypt|cookie.*(locked|permission)/i.test(tail))
     return new StudioError("ENGINE_FAILED", "Couldn't read that browser's sign-in cookies.", "Close the browser completely and retry, or use cookiesFromBrowser \"firefox\" (Chrome and Edge on Windows often block this).");
   if (/Unsupported URL/i.test(tail)) return new StudioError("INVALID_INPUT", `That link isn't a video page yt-dlp understands: ${url}`, "Use the link of a single video (or a channel/playlist for discover_videos).");
+  // YouTube's bot check is about the network (too many requests, VPN, shared or data-centre IP),
+  // so signing in rarely helps once it has started; say what does.
+  if (/not a bot/i.test(tail))
+    return new StudioError(
+      "ENGINE_FAILED",
+      "YouTube is asking this network to prove it isn't a bot, so it's blocking downloads for now.",
+      (cookiesFromBrowser ? "" : 'First retry with cookiesFromBrowser (e.g. "chrome" or "safari"). ') +
+        "If that still fails: turn off any VPN or switch network (a phone hotspot works), or wait an hour or two. Or download the video in your browser and drop it into the Talk-n-Edit Inbox.",
+    );
   if (/Sign in to confirm|login required|cookies|private video|members-only|age/i.test(tail))
     return new StudioError("ENGINE_FAILED", "The site wants you to be signed in for this video.", 'Retry with cookiesFromBrowser (e.g. "chrome" or "safari") to use your browser\'s sign-in.');
   if (/HTTP Error 403|429|rate.?limit|Too Many Requests/i.test(tail))
@@ -164,10 +192,9 @@ export async function urlImportJob(input: UrlImportInput, ctx: JobContext) {
   ctx.progress("reading the link", 0.02);
   let info: any;
   try {
-    const r = await run(py, ytdlp(["-J", "--no-playlist", url], input.cookiesFromBrowser), { signal: ctx.signal, timeoutMs: 180_000, label: "yt-dlp" });
-    info = JSON.parse(r.stdout);
+    info = await ytdlpJson(py, ["-J", "--no-playlist", url], input.cookiesFromBrowser, url, ctx.signal);
   } catch (e) {
-    throw friendly(e, url);
+    throw e instanceof StudioError ? e : friendly(e, url, input.cookiesFromBrowser);
   }
   if (info._type === "playlist" || Array.isArray(info.entries))
     throw new StudioError("INVALID_INPUT", "That link is a playlist or channel, not one video.", "Use discover_videos on it to list its videos, then import the ones you want.");
@@ -215,7 +242,7 @@ export async function urlImportJob(input: UrlImportInput, ctx: JobContext) {
   try {
     await run(py, ytdlp(args, input.cookiesFromBrowser), { signal: ctx.signal, timeoutMs: 3 * 3600_000, label: "yt-dlp", onStdoutLine: onLine, onStderrLine: onLine });
   } catch (e) {
-    throw friendly(e, url);
+    throw friendly(e, url, input.cookiesFromBrowser);
   }
   if (!file || !fs.existsSync(file)) throw new StudioError("ENGINE_FAILED", "The download finished but the file wasn't found.", "Check the Inbox folder; run setup to update yt-dlp.");
 
@@ -258,10 +285,9 @@ export async function linkInfo(urlIn: string, cookiesFromBrowser?: Browser): Pro
   if (!fs.existsSync(py)) throw new StudioError("DEPENDENCY_MISSING", "The Python environment is missing.", "Run the setup script, then restart Claude.");
   let info: any;
   try {
-    const r = await run(py, ytdlp(["-J", "--no-playlist", url], cookiesFromBrowser), { timeoutMs: 180_000, label: "yt-dlp" });
-    info = JSON.parse(r.stdout);
+    info = await ytdlpJson(py, ["-J", "--no-playlist", url], cookiesFromBrowser, url);
   } catch (e) {
-    throw friendly(e, url);
+    throw e instanceof StudioError ? e : friendly(e, url, cookiesFromBrowser);
   }
   if (info._type === "playlist" || Array.isArray(info.entries))
     throw new StudioError("INVALID_INPUT", "That link is a playlist or channel, not one video.", "Use discover_videos to list its videos.");
@@ -402,10 +428,9 @@ export async function discoverVideos(d: DiscoverInput, withThumbs = true): Promi
   const { target, fetch: n, describe } = discoverTarget(d);
   let json: any;
   try {
-    const r = await run(py, ytdlp(["-J", "--flat-playlist", "--playlist-end", String(n), target], d.cookiesFromBrowser), { timeoutMs: 180_000, label: "yt-dlp" });
-    json = JSON.parse(r.stdout);
+    json = await ytdlpJson(py, ["-J", "--flat-playlist", "--playlist-end", String(n), target], d.cookiesFromBrowser, target);
   } catch (e) {
-    throw friendly(e, target);
+    throw e instanceof StudioError ? e : friendly(e, target, d.cookiesFromBrowser);
   }
   const results = parseListing(json, d);
   const thumbnails: string[] = [];

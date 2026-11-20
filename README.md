@@ -22,6 +22,13 @@ Claude:  Done. Finals are in your Clips folder.
 
 No timeline to learn and no templates to fight. You direct, Claude edits, and you revise by just saying what to change.
 
+## See it in action
+
+<!-- DEMO VIDEO: on github.com, edit this file, click the empty line below this note, drag talk-n-edit-demo-1080p.mp4 onto it, wait for the upload link to appear, then commit. GitHub shows that link as a video player. -->
+
+
+*One YouTube link in, two funny Reels out. Claude downloads the video, transcribes it, picks the moments, then edits and renders the Reels with Talk-n-Edit, asking before each step. About 24 minutes of work, sped up to about a minute.*
+
 ---
 
 ## Why Talk-n-Edit
@@ -127,6 +134,7 @@ Run the same install command again. It pulls the latest version and re-runs the 
 | Problem | Fix |
 | --- | --- |
 | Claude doesn't seem to have the tools | Quit Claude completely (⌘Q on a Mac; on Windows right-click its icon by the clock → Quit) and reopen it. Still missing? Run the install command again. |
+| The tools are missing in the Claude app's **Code** tab | Setup connects Talk-n-Edit to the **Chat** tab, so ask there. The Code tab (Claude Code) keeps its own list of tools; to add Talk-n-Edit to it, run `claude mcp add --scope user talk-n-edit -- node --disable-warning=ExperimentalWarning ~/talk-n-edit/dist/index.js` (use your real folder path on Windows), then start a new Code session. |
 | You want a health check | Ask Claude: *"Run the Talk-n-Edit system doctor."* It lists anything that's wrong and how to fix it. |
 | "ffmpeg is missing filters: subtitles" | Mac: run `brew install ffmpeg-full`. Windows: run `winget install Gyan.FFmpeg`. Then run the install command again and restart Claude. |
 | Windows: "running scripts is disabled on this system" | Use the `irm … \| iex` command above (it works under any policy), or run the setup as `powershell -ExecutionPolicy Bypass -File scripts\setup_windows.ps1`. |
@@ -134,6 +142,7 @@ Run the same install command again. It pulls the latest version and re-runs the 
 | A window asks to install "command line developer tools" | Click Install, wait for it to finish, then run the install command again. |
 | The transcript is in the wrong language | Tell Claude the language: *"It's in Hindi."* It re-transcribes with that setting. |
 | A link won't download | Run the install command again (it updates the downloader, since sites change often). For private, unlisted or age-restricted videos, ask Claude to *"use my Chrome sign-in"*. |
+| YouTube says "confirm you're not a bot" | YouTube is blocking downloads from your network for a while, often after many downloads, or on a VPN or shared network. Signing in rarely helps then. Turn off the VPN or switch network (a phone hotspot works), or wait an hour or two. Or download the video in your browser and drop it into the Inbox; everything else works the same. |
 | The first transcription is slow | The speech model downloads once (about 1.6 GB on Apple Silicon, 470 MB on Windows). Later runs are faster. On Windows and Intel Macs transcription runs on the processor, so a long video takes a while; PCs with under 6 GB of memory use the lighter "base" model automatically. |
 | A link that needs your sign-in won't download on Windows | Chrome and Edge lock their cookies while open. Close the browser completely and retry, or ask Claude to use your Firefox sign-in. |
 | Animated graphics fail | Run the install command again. It downloads the small headless browser the graphics need. |

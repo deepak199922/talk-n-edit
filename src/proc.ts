@@ -12,6 +12,8 @@ export interface RunOptions {
   timeoutMs?: number;
   env?: NodeJS.ProcessEnv;
   label?: string;
+  /** Keep all of stdout (for programs that print data to parse, like yt-dlp -J), not just the last part. */
+  keepAllStdout?: boolean;
 }
 
 export interface RunResult {
@@ -58,7 +60,7 @@ export function run(cmd: string, args: string[], opts: RunOptions = {}): Promise
 
     child.stdout.on("data", (d: Buffer) => {
       const s = outDec.write(d);
-      stdout = (stdout + s).slice(-KEEP);
+      stdout = opts.keepAllStdout ? stdout + s : (stdout + s).slice(-KEEP);
       if (opts.onStdoutLine) {
         outBuf += s;
         let i;
