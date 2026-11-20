@@ -22,9 +22,15 @@ Claude:  Done. Finals are in your Clips folder.
 
 No timeline to learn and no templates to fight. You direct, Claude edits, and you revise by just saying what to change.
 
-<!-- DEMO VIDEO: add a "## See it in action" section here once a demo made only from your own or royalty-free footage is ready (upload it in GitHub's editor so it plays inline). Never use other people's videos in the demo. -->
+<!-- Demo rule: only your own or properly licensed footage, credited under the video. Never other people's videos. -->
+
+## See it in action
 
 https://github.com/user-attachments/assets/8b431e8a-885f-43b5-ba69-64d8c707d2d9
+
+*A royalty-free YouTube link in, a cinematic vertical Reel out, made by Claude with Talk-n-Edit. How long it takes depends on your computer.*
+
+<sub>Demo footage: "Sahara Desert & Dubai Desert | Drone footage" by [Free HD videos - no copyright](https://www.youtube.com/watch?v=eg2g6FPsdLI), licensed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). Cut, reframed to vertical and captioned with Talk-n-Edit.</sub>
 
 ---
 
