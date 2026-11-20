@@ -176,6 +176,9 @@ const ALLOWED_IMPORT = /^\s*import\s+(?:type\s+)?[\s\S]*?\s+from\s+["'](react|re
 const FORBIDDEN = [
   /\brequire\s*\(/, /\bprocess\./, /child_process/, /\bfetch\s*\(/, /XMLHttpRequest/, /WebSocket/, /\beval\s*\(/, /new\s+Function\s*\(/,
   /\bimport\s*\(/, /localStorage/, /sessionStorage/, /document\.cookie/, /sendBeacon/, /\bnavigator\./, /window\.open/, /importScripts/, /\bWorker\s*\(/,
+  // Bundler escape hatches: require.context(...), import.meta and new URL("file", import.meta.url) can pull
+  // files from disk into the bundle; bracket access to globals can rebuild any of the names above.
+  /\brequire\b/, /import\.meta/, /__webpack/, /\bnew\s+URL\s*\(/, /\bglobalThis\b/, /\bwindow\s*\[/, /\bself\s*\[/, /\bfetch\b/,
 ];
 
 export function checkFxCode(code: string): string[] {

@@ -590,6 +590,16 @@ await group("v0.2: animated graphics + custom effects", async () => {
   check("broken update is rejected and the working version kept", !c2.ok && kept, JSON.stringify(c2).slice(0, 200));
   const c3 = await svc.fxCreate({ name: "e2e-evil", description: "x", code: `import cp from "child_process";\nexport default function X(){ return null; }` });
   check("effects cannot import Node modules", !c3.ok && c3.stage === "check");
+  // Ways to read files from disk through the bundler, or to rebuild blocked names, are refused too.
+  const sneaky = [
+    `const f = require.context("/", true, /\\.txt$/);`,
+    `const u = new URL("./secret.txt", import.meta.url);`,
+    `const g = globalThis["fe" + "tch"];`,
+    `const w = window["fe" + "tch"];`,
+  ];
+  const remo = await load("dist/remotion.js");
+  const caught = sneaky.filter((line) => remo.checkFxCode(`import React from "react";\n${line}\nexport default function X(){ return null; }`).length > 0);
+  check("effects cannot reach files or globals through the bundler", caught.length === sneaky.length, `${caught.length}/${sneaky.length}`);
   check("custom effect appears in the catalog", svc.catalog("components").some((x) => x.name === "fx:e2e-bar"));
   const fr = await render(base("fx use", { output: { aspect: "16:9", fps: 30, platform: "generic" }, clips: [{ id: "c", assetId: A.square25, in: 0, out: 2, snap: "frame" }], overlays: [{ id: "x", component: "fx:e2e-bar", start: { at: 0.5 }, duration: 1, props: { color: "#FF00FF" } }] }));
   const mag = frameBytes(fr.output, 1.3, "crop=iw*0.3:ih*0.04:iw*0.05:ih*0.48", "1:1", "rgb24");

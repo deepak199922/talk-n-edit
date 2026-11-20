@@ -6,6 +6,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+# The tests only read the code; nothing in CI can push, comment or change settings.
+permissions:
+  contents: read
+
 jobs:
   scripts:
     name: Install scripts

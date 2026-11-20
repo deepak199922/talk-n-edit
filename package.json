@@ -1,6 +1,7 @@
 {
   "name": "talk-n-edit",
-  "version": "0.5.1",
+  "version": "0.5.2",
+  "license": "MIT",
   "description": "Talk-n-Edit: an AI video editor you talk to. An MCP server + skill that lets Claude edit Reels, Shorts and TikToks on your own computer.",
   "type": "module",
   "private": true,

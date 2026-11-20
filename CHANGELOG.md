@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.2: safety
+
+- **Custom effects are locked down further:** besides Node modules, network calls and `eval`, effects can no longer use bundler features (`require.context`, `import.meta`, `new URL(…)`) or bracket access to globals, which could have pulled files from disk into an effect.
+- CI runs with a read-only token.
+
 ## 0.5.1
 
 - Fixed: link_info, link imports and discover_videos could fail with "not valid JSON" on long YouTube videos (especially signed in): yt-dlp's video details are now read in full instead of only the last 200 KB.

@@ -46,7 +46,7 @@ Jobs return a jobId: job_status can wait up to 45 s. Finals are copied to the Cl
 
 export function createServer() {
   svc.boot();
-  const server = new McpServer({ name: "talk-n-edit", version: "0.5.1" }, { instructions: INSTRUCTIONS });
+  const server = new McpServer({ name: "talk-n-edit", version: "0.5.2" }, { instructions: INSTRUCTIONS });
 
   server.registerTool(
     "system_doctor",
