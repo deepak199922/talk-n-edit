@@ -26,8 +26,6 @@ No timeline to learn and no templates to fight. You direct, Claude edits, and yo
 
 <!-- DEMO VIDEO: on github.com, edit this file, click the empty line below this note, drag talk-n-edit-demo-1080p.mp4 onto it, wait for the upload link to appear, then commit. GitHub shows that link as a video player. -->
 
-https://github.com/user-attachments/assets/284d1c4b-b4a9-41d0-9c76-529129eaf188
-
 *One YouTube link in, two funny Reels out. Claude downloads the video, transcribes it, picks the moments, then edits and renders the Reels with Talk-n-Edit, asking before each step. About 24 minutes of work, sped up to about a minute.*
 
 ---
