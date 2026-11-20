@@ -25,4 +25,14 @@ The [developer reference](docs/REFERENCE.md) explains the layout, tools and time
 - **Update the skill** (`skills/talk-n-edit/`) when you add a feature Claude should know about, and the timeline spec when the format changes.
 - Run `shellcheck install.sh scripts/setup_mac.sh` if you touch the shell scripts. Keep the PowerShell scripts plain ASCII and compatible with Windows PowerShell 5.1 (no `??`, ternaries or `&&`); CI parses and runs them on Windows.
 
-By contributing you agree your work is released under the MIT License.
+## Sign your commits (Developer Certificate of Origin)
+
+Every commit in a pull request must be signed off, to certify that you wrote it or otherwise have the right to submit it under the project's license, as described in the [Developer Certificate of Origin 1.1](https://developercertificate.org/). Add the sign-off with `git commit -s`, which appends a line like:
+
+```text
+Signed-off-by: Your Name <you@example.com>
+```
+
+Please don't submit code, media, models or fonts copied from somewhere else unless their license allows it, and say where they came from in the pull request (and in `THIRD_PARTY_NOTICES.md`).
+
+By contributing you agree your work is released under the MIT License, and that it's provided as described in [DISCLAIMER.md](DISCLAIMER.md).

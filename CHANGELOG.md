@@ -5,6 +5,7 @@
 - Fixed: link_info, link imports and discover_videos could fail with "not valid JSON" on long YouTube videos (especially signed in): yt-dlp's video details are now read in full instead of only the last 200 KB.
 - If yt-dlp's output still can't be read, its own error is shown instead of a JSON error.
 - YouTube's "confirm you're not a bot" check gets its own message: it's about the network (VPN, shared or busy connection), so it suggests switching network or waiting, not only signing in.
+- Docs: added [DISCLAIMER.md](DISCLAIMER.md) (no warranty, responsible use, no DRM bypass, no data collection, results and speed vary, not affiliated) and [SECURITY.md](SECURITY.md) (private reports, rights concerns); README "Responsible use" section; contributor sign-off (DCO); more third-party notices; video files can't be committed by accident.
 
 ## 0.5.0: Windows
 

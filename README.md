@@ -22,12 +22,7 @@ Claude:  Done. Finals are in your Clips folder.
 
 No timeline to learn and no templates to fight. You direct, Claude edits, and you revise by just saying what to change.
 
-## See it in action
-
-<!-- DEMO VIDEO: on github.com, edit this file, click the empty line below this note, drag talk-n-edit-demo-1080p.mp4 onto it, wait for the upload link to appear, then commit. GitHub shows that link as a video player. -->
-
-
-*One YouTube link in, two funny Reels out. Claude downloads the video, transcribes it, picks the moments, then edits and renders the Reels with Talk-n-Edit, asking before each step. About 24 minutes of work, sped up to about a minute.*
+<!-- DEMO VIDEO: add a "## See it in action" section here once a demo made only from your own or royalty-free footage is ready (upload it in GitHub's editor so it plays inline). Never use other people's videos in the demo. -->
 
 ---
 
@@ -36,7 +31,7 @@ No timeline to learn and no templates to fight. You direct, Claude edits, and yo
 - **You direct, it edits.** Describe the Reel you want, look at the draft, ask for changes. Claude remembers the edit and changes only what you asked.
 - **Anything you can describe.** Transitions, zooms on a specific word, freeze frames, colour looks, blur over a logo, picture-in-picture, sound effects, animated titles and emoji. If something isn't built in, Claude writes a custom animated graphic and shows you a preview first.
 - **Your language.** Word-by-word captions in English, Hindi, Punjabi and more, including Hinglish (Hindi in Roman script) and translations.
-- **Private.** Your videos never leave your computer. Transcription, face tracking and rendering all run locally.
+- **Private.** Your video files stay on your computer: transcription, face tracking and rendering all run locally, and Talk-n-Edit collects no data. Claude only sees what it needs to edit, like the transcript and a few preview frames.
 - **No per-video fees.** It uses the Claude app you already have. There are no credits or watermarks.
 - **Safe with your files.** Originals are never changed, and Talk-n-Edit never deletes anything.
 
@@ -61,7 +56,7 @@ On **Windows**, paste this into PowerShell (press the Windows key, type *PowerSh
 irm https://raw.githubusercontent.com/deepak199922/talk-n-edit/main/install.ps1 | iex
 ```
 
-It downloads Talk-n-Edit to a `talk-n-edit` folder in your home folder and sets everything up: ffmpeg, Node, the speech model and the Claude connector. On Windows it installs what's missing with winget, Windows' own installer, so you may see a few "Do you want to allow…" prompts. If something is missing, it tells you exactly what to do. The first run takes 5–15 minutes, mostly downloads.
+It downloads Talk-n-Edit to a `talk-n-edit` folder in your home folder and sets everything up: ffmpeg, Node, the speech model and the Claude connector. On Windows it installs what's missing with winget, Windows' own installer, so you may see a few "Do you want to allow…" prompts. If something is missing, it tells you exactly what to do. The first run usually takes 5–15 minutes, mostly downloads; it depends on your computer and internet connection.
 
 **2. Restart Claude.** Quit it completely, then open it again. On a Mac press ⌘Q. On Windows, right-click the Claude icon by the clock and choose Quit (closing the window isn't enough).
 
@@ -94,7 +89,7 @@ It downloads Talk-n-Edit to a `talk-n-edit` folder in your home folder and sets 
 | **Effects** | 22 transitions, keyframed zooms and punch-ins, 14 colour looks plus your own LUTs, blur/pixelate masks, picture-in-picture and B-roll |
 | **Graphics** | Animated titles, emoji, arrows, callouts, number count-ups (₹2,00,000 style), progress bar, follow/subscribe button, confetti, checklists, plus custom graphics on request |
 | **Audio** | Your music, ducked under speech automatically; 11 built-in sound effects; voice clean-up; loudness set for Instagram and YouTube (−14 LUFS) |
-| **Links and discovery** | Import from a link (YouTube, Shorts, Twitch, Instagram, Vimeo, X and many more), or just part of a long video; keeps chapters and YouTube's most-replayed moments so Claude can jump to the best bits; find videos by search, channel or Twitch top clips, shown with thumbnails |
+| **Links and discovery** | For your own videos, or ones you have permission to use: import from a link (YouTube, Shorts, Twitch, Instagram, Vimeo, X and many more), or just part of a long video; keeps chapters and YouTube's most-replayed moments so Claude can jump to the best bits; find videos by search, channel or Twitch top clips, shown with thumbnails |
 | **Quality checks** | Every final is checked for black frames, dead air, loudness, hook timing and caption placement before you get it |
 | **Styles** | Clean creator, hype, cinematic, podcast, minimal, product showcase, and your own saved styles |
 
@@ -170,7 +165,7 @@ Talk-n-Edit is free and open source. It runs through your Claude app, so it uses
 Any plan that runs the Claude desktop app with local connectors. Uploading the skill needs a plan with Skills; see [Anthropic's help article](https://support.claude.com/en/articles/12512180-use-skills-in-claude). Without the skill, Talk-n-Edit still works, but Claude edits less skilfully.
 
 **Can I download and edit other people's videos?**
-Talk-n-Edit can download from links and find videos, but it doesn't decide what you may use: **you're responsible** for having the rights to what you download, edit and post, and for following each site's terms. Your own videos, Creative Commons videos and footage you have permission for are safe choices. Reposting other people's work can get it claimed or taken down.
+Talk-n-Edit can download from links and find videos, but it doesn't decide what you may use: **you're responsible** for having the rights to what you download, edit and post, and for following each site's terms. Your own videos, Creative Commons videos and footage you have permission for are safe choices. Reposting other people's work can get it claimed or taken down. See [DISCLAIMER.md](DISCLAIMER.md).
 
 **Windows? Linux?**
 Windows 10 and 11 are supported with their own installer (see Install). Linux works for developers (see below).
@@ -197,10 +192,18 @@ Then add `node /path/to/talk-n-edit/dist/index.js` to your MCP client and upload
 
 More detail is in the [developer reference](docs/REFERENCE.md): every tool, the timeline format, the command line, brand kits and settings.
 
+## Responsible use
+
+Talk-n-Edit is a tool that runs on your computer, and **you're responsible for what you put through it and what you publish**: use your own videos or material you have permission to use, and follow each site's terms. It doesn't bypass copy protection (DRM, paywalls or logins), and it collects no data. AI results (captions, translations, chosen moments) can contain mistakes, so review before posting. Speed depends on your computer, connection and source video. Read the full [disclaimer](DISCLAIMER.md) before use.
+
+Talk-n-Edit is an independent project, not affiliated with or endorsed by Anthropic, YouTube, Instagram, Twitch or any other company or site it works with. Their names are trademarks of their owners.
+
+To report a security problem or a rights concern, see [SECURITY.md](SECURITY.md).
+
 ## Contributing
 
 Ideas, bug reports and pull requests are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License and credits
 
-Talk-n-Edit is [MIT licensed](LICENSE). It builds on FFmpeg, Whisper, OpenCV, PySceneDetect, Remotion and the Model Context Protocol. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Note: **Remotion** (used for animated graphics) is free for individuals and companies of up to 3 people; larger companies need a [Remotion company license](https://www.remotion.dev/license).
+Talk-n-Edit is [MIT licensed](LICENSE) and provided as is, without warranty; see the [disclaimer](DISCLAIMER.md). It builds on FFmpeg, Whisper, OpenCV, PySceneDetect, Remotion and the Model Context Protocol. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Note: **Remotion** (used for animated graphics) is free for individuals and companies of up to 3 people; larger companies need a [Remotion company license](https://www.remotion.dev/license).

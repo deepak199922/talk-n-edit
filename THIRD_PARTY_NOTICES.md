@@ -15,7 +15,9 @@ Talk-n-Edit's own code is MIT licensed (see [LICENSE](LICENSE)). It includes or 
 | What | License | Note |
 | --- | --- | --- |
 | [Remotion](https://www.remotion.dev) (`remotion`, `@remotion/bundler`, `@remotion/renderer`) | [Remotion License](https://www.remotion.dev/license) | **Free for individuals, non-profits and companies of up to 3 people. Larger for-profit companies need a Remotion company license** to use the animated graphics. |
-| FFmpeg (Homebrew `ffmpeg-full`) | LGPL/GPL | Installed with Homebrew; run as a separate program |
+| FFmpeg (Homebrew `ffmpeg-full` on a Mac; Gyan.dev build via winget on Windows) | LGPL/GPL | Installed separately by setup; run as a separate program, not included or modified |
+| [yt-dlp](https://github.com/yt-dlp/yt-dlp) and yt-dlp-ejs | Unlicense (public domain) | Installed in the Python environment; used for imports from links and finding videos |
+| [uv](https://github.com/astral-sh/uv) | MIT / Apache 2.0 | Installs the Python environment |
 | Whisper speech models (OpenAI; MLX conversion by mlx-community) | MIT | Downloaded on first setup |
 | mlx-whisper, faster-whisper | MIT | |
 | OpenCV | Apache 2.0 | |
@@ -23,4 +25,4 @@ Talk-n-Edit's own code is MIT licensed (see [LICENSE](LICENSE)). It includes or 
 | Model Context Protocol TypeScript SDK, zod, React | MIT | |
 | Chrome Headless Shell (via Remotion) | Google Chrome terms | Downloaded by setup to render graphics |
 
-If you think something here is listed wrongly, please open an issue.
+Talk-n-Edit's MIT License covers only its own code; it grants no rights in the software, models, fonts or services above. If you think something here is listed wrongly, please open an issue or see [SECURITY.md](SECURITY.md).
