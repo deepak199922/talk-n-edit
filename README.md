@@ -1,6 +1,6 @@
 # Talk-n-Edit
 
-**The AI video editor you talk to.** Tell Claude what you want, in plain words, and it cuts, captions and polishes your Reels, Shorts and TikToks on your own computer, Mac or Windows.
+**The AI video editor you talk to.** Paste a YouTube link or drop in a video, tell Claude what you want in plain words, and it finds the best moments, then cuts, captions and polishes your Reels, Shorts and TikToks on your own computer, Mac or Windows.
 
 [![Tests](https://github.com/deepak199922/talk-n-edit/actions/workflows/test.yml/badge.svg)](https://github.com/deepak199922/talk-n-edit/actions/workflows/test.yml)
 ![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon%20%7C%20Intel-black)
