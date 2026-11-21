@@ -45,6 +45,8 @@ jobs:
         run: node --disable-warning=ExperimentalWarning dist/index.js --check
       - name: Tests
         run: npm test
+      - name: Feature switch tests
+        run: npm run test:features
 
   windows:
     name: End-to-end (Windows)
@@ -76,3 +78,5 @@ jobs:
         run: node --disable-warning=ExperimentalWarning dist/index.js --check
       - name: Tests
         run: npm test
+      - name: Feature switch tests
+        run: npm run test:features

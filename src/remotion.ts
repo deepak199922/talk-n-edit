@@ -130,6 +130,16 @@ function inputProps(spec: GraphicSpec) {
   };
 }
 
+/** Plain-words fixes for animation errors that come up often. */
+export function fxHints(problems: string[]): string[] | undefined {
+  const t = problems.join("\n");
+  const out: string[] = [];
+  if (/inputRange must be (strictly )?monotonically/i.test(t))
+    out.push("interpolate() was given a range whose start and end are equal (or going backwards), e.g. [102,102]. Make each range at least 1 frame long, e.g. [a, Math.max(a + 1, b)].");
+  if (/outputRange/i.test(t) && /same length|length/i.test(t)) out.push("interpolate() needs inputRange and outputRange of the same length.");
+  return out.length ? out : undefined;
+}
+
 function cleanError(e: unknown): string {
   const m = (e as Error)?.message ?? String(e);
   return m.split("\n").filter((l) => l.trim() && !/^\s+at /.test(l)).slice(0, 12).join("\n");
@@ -161,7 +171,8 @@ export async function renderGraphic(spec: GraphicSpec, outDir: string, signal?: 
     } as any);
   } catch (e) {
     if (signal?.aborted) throw new StudioError("CANCELLED", "Cancelled");
-    throw new StudioError("ENGINE_FAILED", `Rendering ${spec.component} failed`, cleanError(e));
+    const msg = cleanError(e);
+    throw new StudioError("ENGINE_FAILED", `Rendering ${spec.component} failed`, [msg, ...(fxHints([msg]) ?? [])].join("\n"));
   }
   const files = fs.readdirSync(outDir).filter((f) => f.endsWith(".png")).sort();
   if (!files.length) throw new StudioError("ENGINE_FAILED", `Rendering ${spec.component} produced no frames`);
@@ -232,7 +243,8 @@ export async function fxCreate(input: FxCreateInput, brand: BrandKit, background
   try {
     await ensureBundle([input.name], ov);
   } catch (e) {
-    return { ok: false, stage: "build", problems: [cleanError(e)], kept: prev ? `The previous working version of ${input.name} is unchanged.` : undefined };
+    const problems = [cleanError(e)];
+    return { ok: false, stage: "build", problems, hints: fxHints(problems), kept: prev ? `The previous working version of ${input.name} is unchanged.` : undefined };
   }
   // Preview: 4 stills composited over the background, tiled 2x2.
   const aspect = input.preview?.aspect ?? "9:16";
@@ -252,7 +264,8 @@ export async function fxCreate(input: FxCreateInput, brand: BrandKit, background
       await renderStill({ composition, serveUrl, inputProps: props, output: path.join(pdir, `s${i}.png`), frame: at[i], imageFormat: "png", browserExecutable: browserExecutable(), logLevel: "error" } as any);
     }
   } catch (e) {
-    return { ok: false, stage: "render", problems: [cleanError(e)], kept: prev ? `The previous working version of ${input.name} is unchanged.` : undefined };
+    const problems = [cleanError(e)];
+    return { ok: false, stage: "render", problems, hints: fxHints(problems), kept: prev ? `The previous working version of ${input.name} is unchanged.` : undefined };
   }
   // Works: publish the draft.
   fs.copyFileSync(draft, path.join(fxDir(), `${input.name}.tsx`));

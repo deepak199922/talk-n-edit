@@ -6,7 +6,7 @@ import { now } from "./db.js";
 import { atempoChain, lookFilters, voiceFilters, zoomExpr } from "./effects.js";
 import { linkDir } from "./platform.js";
 import { StudioError } from "./errors.js";
-import { ffmpeg, r3 } from "./ffmpeg.js";
+import { captionFilter, ffmpeg, r3 } from "./ffmpeg.js";
 import { probe } from "./ffprobe.js";
 import { newId, slug } from "./ids.js";
 import { enqueue, JobContext } from "./jobs.js";
@@ -298,7 +298,7 @@ export function buildCommand(
 
   if (assFile) {
     const out = next();
-    graph.push(`${cur}subtitles=filename=${path.basename(assFile)}:fontsdir=fonts${out}`);
+    graph.push(`${cur}${captionFilter(path.basename(assFile))}${out}`);
     cur = out;
   }
   const vfinal = next();

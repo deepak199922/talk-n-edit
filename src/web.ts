@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { ffmpegBin, getConfig, pythonBin, WORKSPACE } from "./config.js";
 import { StudioError } from "./errors.js";
-import { r3 } from "./ffmpeg.js";
+import { ffmpeg, r3 } from "./ffmpeg.js";
 import { hashParams } from "./ids.js";
 import type { JobContext } from "./jobs.js";
 import { importJob } from "./media.js";
@@ -159,6 +159,68 @@ export function sourceFor(assetId: string): SourceInfo | undefined {
   return (a.data as { source?: SourceInfo }).source;
 }
 
+// ------------------------------------------------------------------ link details cache
+/**
+ * yt-dlp reads the video page (slow, and YouTube rate-limits it) for link_info, again for the download's details
+ * and a third time inside the download. The details are kept for features.linkInfoCacheMinutes and handed to
+ * yt-dlp with --load-info-json, so the page is read once. Any problem with a cached copy falls back to reading the
+ * page again, exactly as before.
+ */
+const infoCacheDir = () => path.join(WORKSPACE, "cache", "linkinfo");
+const infoCacheFile = (url: string, cookiesFromBrowser?: Browser) => path.join(infoCacheDir(), `${hashParams({ url, cookies: cookiesFromBrowser ?? null })}.json`);
+
+export function readCachedInfo(url: string, cookiesFromBrowser?: Browser): { info: any; file: string } | undefined {
+  const mins = Number(getConfig().features.linkInfoCacheMinutes);
+  if (!(mins > 0)) return undefined;
+  const file = infoCacheFile(url, cookiesFromBrowser);
+  try {
+    const st = fs.statSync(file);
+    if (Date.now() - st.mtimeMs > mins * 60_000) return undefined;
+    const info = JSON.parse(fs.readFileSync(file, "utf8"));
+    if (!info || typeof info !== "object" || Array.isArray(info)) return undefined;
+    return { info, file };
+  } catch {
+    return undefined;
+  }
+}
+
+export function writeCachedInfo(url: string, cookiesFromBrowser: Browser | undefined, info: any): void {
+  if (!(Number(getConfig().features.linkInfoCacheMinutes) > 0)) return;
+  // Only single videos are worth keeping (playlists are refused anyway, and live streams change).
+  if (!info || typeof info !== "object" || info._type === "playlist" || Array.isArray(info.entries) || info.is_live) return;
+  try {
+    const file = infoCacheFile(url, cookiesFromBrowser);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const tmp = `${file}.${process.pid}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(info));
+    fs.renameSync(tmp, file);
+  } catch {
+    /* caching is an optimisation only */
+  }
+}
+
+/**
+ * A full (not start/end) copy of the same video already in the project, good enough to cut the part from:
+ * same site + id, file still there, long enough, and at least as sharp as the download would be.
+ */
+export function findFullCopy(projectId: string, site: string, id: string, start: number, end: number | undefined, wantHeight: number, info: any): store.Asset | undefined {
+  if (!id) return undefined;
+  const heights: number[] = Array.isArray(info?.formats) ? info.formats.map((f: any) => f?.height).filter((h: any) => typeof h === "number" && h > 0) : [];
+  // Sites that don't list heights have one file to offer, so the full copy is that same file.
+  const bestAvailable = heights.length ? Math.min(wantHeight, Math.max(...heights)) : 0;
+  for (const a of store.listAssets(projectId)) {
+    const src = (a.data as { source?: SourceInfo }).source;
+    if (!src || a.kind !== "video" || src.site !== site || src.id !== id) continue;
+    if (src.sectionStart !== undefined || src.sectionEnd !== undefined) continue;
+    if (!a.data.original || !fs.existsSync(a.data.original)) continue;
+    const dur = a.data.probe?.duration ?? 0;
+    if (!(dur > 0) || start >= dur || (end !== undefined && end > dur + 0.5)) continue;
+    if ((a.data.probe?.height ?? 0) < bestAvailable - 8 && (a.data.probe?.width ?? 0) < bestAvailable - 8) continue;
+    return a;
+  }
+  return undefined;
+}
+
 // ------------------------------------------------------------------ import from a link
 
 export interface UrlImportInput {
@@ -191,10 +253,16 @@ export async function urlImportJob(input: UrlImportInput, ctx: JobContext) {
 
   ctx.progress("reading the link", 0.02);
   let info: any;
-  try {
-    info = await ytdlpJson(py, ["-J", "--no-playlist", url], input.cookiesFromBrowser, url, ctx.signal);
-  } catch (e) {
-    throw e instanceof StudioError ? e : friendly(e, url, input.cookiesFromBrowser);
+  let cached = readCachedInfo(url, input.cookiesFromBrowser);
+  if (cached) info = cached.info;
+  else {
+    try {
+      info = await ytdlpJson(py, ["-J", "--no-playlist", url], input.cookiesFromBrowser, url, ctx.signal);
+    } catch (e) {
+      throw e instanceof StudioError ? e : friendly(e, url, input.cookiesFromBrowser);
+    }
+    writeCachedInfo(url, input.cookiesFromBrowser, info);
+    cached = readCachedInfo(url, input.cookiesFromBrowser);
   }
   if (info._type === "playlist" || Array.isArray(info.entries))
     throw new StudioError("INVALID_INPUT", "That link is a playlist or channel, not one video.", "Use discover_videos on it to list its videos, then import the ones you want.");
@@ -230,7 +298,6 @@ export async function urlImportJob(input: UrlImportInput, ctx: JobContext) {
   ];
   // Cut exactly at the asked times (re-encodes just the cut points' neighbourhood), so section times stay true.
   if (section) args.push("--download-sections", `*${start}-${end ?? "inf"}`, "--force-keyframes-at-cuts");
-  args.push(url);
 
   let file = "";
   const onLine = (line: string) => {
@@ -239,10 +306,45 @@ export async function urlImportJob(input: UrlImportInput, ctx: JobContext) {
     const mf = /^TNEFILE:(.+)$/.exec(line.trim());
     if (mf) file = mf[1].trim();
   };
-  try {
-    await run(py, ytdlp(args, input.cookiesFromBrowser), { signal: ctx.signal, timeoutMs: 3 * 3600_000, label: "yt-dlp", onStdoutLine: onLine, onStderrLine: onLine });
-  } catch (e) {
-    throw friendly(e, url, input.cookiesFromBrowser);
+  const notes: string[] = [];
+  let cutFrom: string | undefined;
+
+  // 1) The whole video is already in the project: cut the part locally (exact times, no network).
+  if (section && getConfig().features.localSectionCut) {
+    const site = info.extractor_key ?? info.extractor ?? "web";
+    const full = findFullCopy(input.projectId, site, String(info.id ?? ""), start!, end, h, info);
+    if (full) {
+      try {
+        file = await cutLocally(full, start!, end, tag, inbox, ctx);
+        cutFrom = full.id;
+      } catch (e) {
+        if (ctx.signal.aborted) throw e;
+        file = "";
+        notes.push(`Cutting from the copy already in the project failed (${(e as Error).message}); downloaded instead.`);
+      }
+    }
+  }
+  // 2) Download with the details already read (no second page read), 3) or exactly as before.
+  if (!file) {
+    let done = false;
+    if (cached && fs.existsSync(cached.file)) {
+      try {
+        await run(py, ytdlp([...args, "--load-info-json", cached.file], input.cookiesFromBrowser), { signal: ctx.signal, timeoutMs: 3 * 3600_000, label: "yt-dlp", onStdoutLine: onLine, onStderrLine: onLine });
+        done = !!file && fs.existsSync(file);
+      } catch (e) {
+        if (ctx.signal.aborted) throw friendly(e, url, input.cookiesFromBrowser);
+        notes.push("The saved link details had expired; read the link again.");
+      }
+    }
+    if (!done) {
+      file = "";
+      ctx.progress("reading the link", 0.04);
+      try {
+        await run(py, ytdlp([...args, url], input.cookiesFromBrowser), { signal: ctx.signal, timeoutMs: 3 * 3600_000, label: "yt-dlp", onStdoutLine: onLine, onStderrLine: onLine });
+      } catch (e) {
+        throw friendly(e, url, input.cookiesFromBrowser);
+      }
+    }
   }
   if (!file || !fs.existsSync(file)) throw new StudioError("ENGINE_FAILED", "The download finished but the file wasn't found.", "Check the Inbox folder; run setup to update yt-dlp.");
 
@@ -258,6 +360,8 @@ export async function urlImportJob(input: UrlImportInput, ctx: JobContext) {
   }
   return {
     downloaded: file,
+    ...(cutFrom ? { cutFrom: `Cut from ${cutFrom}, the full copy already in this project (nothing downloaded).` } : {}),
+    ...(notes.length ? { notes } : {}),
     assets: res.assets,
     source: { ...source, description: source.description?.slice(0, 300) },
     hint: languageHint(source),
@@ -291,6 +395,7 @@ export async function linkInfo(urlIn: string, cookiesFromBrowser?: Browser): Pro
   }
   if (info._type === "playlist" || Array.isArray(info.entries))
     throw new StudioError("INVALID_INPUT", "That link is a playlist or channel, not one video.", "Use discover_videos to list its videos.");
+  writeCachedInfo(url, cookiesFromBrowser, info);
   const source = sourceFromInfo(info, url);
   const heights = Array.isArray(info.formats) ? [...new Set(info.formats.map((f: any) => f.height).filter((h: any) => typeof h === "number"))].sort((a: any, b: any) => b - a) : [];
   let thumbnail: string | undefined;
@@ -447,4 +552,28 @@ export async function discoverVideos(d: DiscoverInput, withThumbs = true): Promi
     });
   }
   return { searched: describe, results, thumbnails };
+}
+
+/** Cut [start, end) out of an asset already in the project into the Inbox (re-encoded at the cut, so times are exact). */
+async function cutLocally(full: store.Asset, start: number, end: number | undefined, tag: string, inbox: string, ctx: JobContext): Promise<string> {
+  const base = path.basename(full.data.sourcePath || full.name).replace(/\.[^.]+$/, "");
+  const out = path.join(inbox, `${base.slice(0, 120)}${tag}.mp4`);
+  // Same as yt-dlp: a finished file with this name is reused.
+  if (fs.existsSync(out) && fs.statSync(out).size > 0) return out;
+  const part = `${out}.part.mp4`;
+  const dur = (end ?? full.data.probe.duration) - start;
+  ctx.progress("cutting the part from the copy already in the project", 0.05);
+  await ffmpeg(
+    [
+      "-ss", String(r3(start)), "-i", full.data.original,
+      ...(end !== undefined ? ["-t", String(r3(dur))] : []),
+      "-map", "0:v:0", "-map", "0:a:0?",
+      "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p",
+      "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart",
+      part,
+    ],
+    { duration: dur, signal: ctx.signal, label: "ffmpeg local cut", onProgress: (f) => ctx.progress("cutting the part from the copy already in the project", 0.05 + 0.6 * f) },
+  );
+  fs.renameSync(part, out);
+  return out;
 }

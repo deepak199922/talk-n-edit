@@ -46,7 +46,7 @@ Jobs return a jobId: job_status can wait up to 45 s. Finals are copied to the Cl
 
 export function createServer() {
   svc.boot();
-  const server = new McpServer({ name: "talk-n-edit", version: "0.5.2" }, { instructions: INSTRUCTIONS });
+  const server = new McpServer({ name: "talk-n-edit", version: "0.5.3" }, { instructions: INSTRUCTIONS });
 
   server.registerTool(
     "system_doctor",
@@ -278,8 +278,8 @@ export function createServer() {
 
   server.registerTool(
     "job_cancel",
-    { description: "Cancel a queued or running job.", inputSchema: { jobId: z.string() } },
-    wrap(async ({ jobId }) => ok(svc.jobView(svc.cancelJob(jobId)))),
+    { description: "Cancel a queued or running job. The answer says whether anything was cancelled (a job that already finished keeps its results).", inputSchema: { jobId: z.string() } },
+    wrap(async ({ jobId }) => ok(svc.cancelJobView(jobId))),
   );
 
   server.registerTool(

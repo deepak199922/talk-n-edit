@@ -1,3 +1,4 @@
+import { getConfig } from "./config.js";
 import type { Resolved, TlWord } from "./resolve.js";
 
 /** "#RRGGBB" -> ASS "&HAABBGGRR" */
@@ -38,6 +39,17 @@ function fontFor(text: string, preferred: string, _body?: string, _g?: string): 
   if (DEVANAGARI.test(text)) return FONTS.devanagari;
   if (NON_LATIN.test(text)) return FONTS.body;
   return preferred;
+}
+
+/**
+ * Override tags for a line: the font switch, plus \fsp0 for Gurmukhi/Devanagari. libass shapes each character on
+ * its own when letter spacing isn't 0, which splits vowel signs from their letters (dotted circles ◌ਿ). With the
+ * shapedCaptions switch off this returns exactly the old font tag.
+ */
+function fontTag(fn: string, base: string, text: string): string {
+  const t = fn !== base ? `\\fn${fn}` : "";
+  if (getConfig().features.shapedCaptions && (GURMUKHI.test(text) || DEVANAGARI.test(text))) return `${t}\\fsp0`;
+  return t;
 }
 
 const graphemes = new Intl.Segmenter(undefined, { granularity: "grapheme" });
@@ -173,7 +185,7 @@ export function buildAss(res: Resolved): string | null {
       const per = splitLines(ch.words.length, maxPerLine, p.maxLines);
       const text = ch.words.map((w) => w.w).join(" ");
       const fn = fontFor(text, brand.fonts.body, brand.fonts.body, brand.fonts.gurmukhi);
-      const fnTag = fn !== brand.fonts.body ? `\\fn${fn}` : "";
+      const fnTag = fontTag(fn, brand.fonts.body, text);
       const render = (current: number) => {
         let s = "";
         let wi = 0;
@@ -221,7 +233,7 @@ export function buildAss(res: Resolved): string | null {
         col("#000000", 0x80), boxed ? 3 : 1, boxed ? 18 * k : 7 * k, boxed ? 0 : 3 * k, align, W * 0.06, W * 0.06, mv,
       );
       const fn = fontFor(P.text, brand.fonts.heading, brand.fonts.body, brand.fonts.gurmukhi);
-      const fnTag = fn !== brand.fonts.heading ? `\\fn${fn}` : "";
+      const fnTag = fontTag(fn, brand.fonts.heading, P.text);
       const hookSide = W * 0.06;
       const maxChars = Math.max(10, Math.floor((W - 2 * hookSide) / (fs * (fn === brand.fonts.heading ? 0.46 : 0.55))));
       const text = wrap(esc(P.uppercase === false ? P.text : P.text.toLocaleUpperCase()), maxChars);
@@ -232,7 +244,7 @@ export function buildAss(res: Resolved): string | null {
       const mv = vertical ? H * 0.43 : H * (safe.bottom + 0.06);
       style(name, brand.fonts.body, fsName, col(brand.colors.text), col(brand.colors.box, 0x40), col("#000000", 0x80), 3, 16 * k, 0, 1, W * 0.06, side, mv);
       const fn = fontFor(`${P.name} ${P.role ?? ""}`, brand.fonts.body, brand.fonts.body, brand.fonts.gurmukhi);
-      const fnTag = fn !== brand.fonts.body ? `\\fn${fn}` : "";
+      const fnTag = fontTag(fn, brand.fonts.body, `${P.name} ${P.role ?? ""}`);
       const role = P.role ? `\\N{\\fs${Math.round(fsName * 0.66)}\\c${ovc(brand.colors.highlight)}}${esc(P.role)}` : "";
       events.push(`Dialogue: ${layer},${ts(o.start)},${ts(o.end)},${name},,0,0,0,,{${fnTag}\\fad(200,200)}${esc(P.name)}${role}`);
     } else if (o.component === "TitleCard") {
@@ -244,10 +256,10 @@ export function buildAss(res: Resolved): string | null {
         `Dialogue: ${layer - 1},${ts(o.start)},${ts(o.end)},${name},,0,0,0,,{\\an7\\pos(0,0)\\p1\\bord0\\shad0\\c&H000000&\\1a&H${alpha.toString(16).padStart(2, "0").toUpperCase()}&\\fad(150,150)}m 0 0 l ${W} 0 ${W} ${H} 0 ${H}{\\p0}`,
       );
       const fn = fontFor(P.title, brand.fonts.heading, brand.fonts.body, brand.fonts.gurmukhi);
-      const fnTag = fn !== brand.fonts.heading ? `\\fn${fn}` : "";
+      const fnTag = fontTag(fn, brand.fonts.heading, P.title);
       const maxChars = Math.max(8, Math.floor((W - 2 * side) / (fs * 0.45)));
       const sub = P.subtitle
-        ? `\\N{\\fn${fontFor(P.subtitle, brand.fonts.body, brand.fonts.body, brand.fonts.gurmukhi)}\\fs${Math.round(fs * 0.42)}\\c${ovc(brand.colors.highlight)}}${esc(P.subtitle)}`
+        ? `\\N{\\fn${fontFor(P.subtitle, brand.fonts.body, brand.fonts.body, brand.fonts.gurmukhi)}${fontTag("", "", P.subtitle)}\\fs${Math.round(fs * 0.42)}\\c${ovc(brand.colors.highlight)}}${esc(P.subtitle)}`
         : "";
       events.push(`Dialogue: ${layer},${ts(o.start)},${ts(o.end)},${name},,0,0,0,,{${fnTag}\\fad(150,150)}${wrap(esc(P.title.toLocaleUpperCase()), maxChars)}${sub}`);
     }

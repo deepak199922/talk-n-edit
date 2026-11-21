@@ -43,6 +43,18 @@ Full field list: [skills/talk-n-edit/references/timeline-spec.md](../skills/talk
 | `transcriptionBackend` | `auto` (`mlx` or `faster-whisper`) |
 | `limits` | `{ "maxImportGB": 20, "maxOutputMinutes": 15 }` |
 | `ffmpeg`, `ffprobe`, `python`, `chrome` | Auto-detected (on Windows also in winget, Scoop and Chocolatey folders); set a path to override |
+| `features` | `{ "shapedCaptions": true, "linkInfoCacheMinutes": 60, "localSectionCut": true, "crossProcessCancel": true }`; see below |
+
+### Feature switches
+
+Each switch can be turned off in `config.json` (e.g. `"features": { "localSectionCut": false }`) to get the earlier behaviour back exactly; switches you leave out keep their defaults. Each one also falls back to the earlier behaviour on its own when its new path can't be used.
+
+| Switch | On | Off / fallback |
+| --- | --- | --- |
+| `shapedCaptions` | Captions are drawn with ffmpeg's `ass` filter and complex text shaping, and Gurmukhi/Devanagari lines use letter spacing 0, so vowel signs (ਿ, ि) sit in the right place with no dotted circles. English captions are unchanged. | The `subtitles` filter, as before. Used automatically when this ffmpeg's `ass` filter has no `shaping` option (`system_doctor` shows `captionShaping`). |
+| `linkInfoCacheMinutes` | A link's details (from `link_info` or a download) are kept this many minutes and given to yt-dlp, so the page is read once instead of up to three times. | `0` reads the page every time. Expired or broken saved details are ignored and the page is read again; the result's `notes` says so. |
+| `localSectionCut` | A `start`/`end` import of a video whose full copy is already in the project is cut from that copy (exact times, nothing downloaded). Not used when a sharper version is available online. | Downloads the part with yt-dlp, as before; also used if the copy is missing or the cut fails (`notes` says so). |
+| `crossProcessCancel` | `job_cancel` can stop a job another Talk-n-Edit server (Claude Desktop vs Claude Code) is running. | Only jobs of this server can be stopped. |
 
 Environment: `TALK_N_EDIT_HOME` moves the working folder. Installs from before the rename keep using `~/VideoStudio` and `~/Downloads/Video Studio`.
 

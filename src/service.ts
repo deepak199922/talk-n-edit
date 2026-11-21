@@ -6,7 +6,7 @@ import { catalog } from "./catalog.js";
 import { APP_ROOT, dirs, ffmpegBin, ffprobeBin, getConfig, LIBRARY, PYTHON_DIR, pythonBin, WORKSPACE } from "./config.js";
 import { StudioError } from "./errors.js";
 import { r3 } from "./ffmpeg.js";
-import { cancelJob, enqueue, eta, getJob, JobRow, recoverJobs, registerJob, waitForJob } from "./jobs.js";
+import { cancelJob, cancelJobDetailed, enqueue, eta, getJob, JobRow, recoverJobs, registerJob, waitForJob } from "./jobs.js";
 import { contactSheet, expandPaths, grabFrames, importJob, summarizeAsset } from "./media.js";
 import { run } from "./proc.js";
 import { Browser, discoverVideos, DiscoverInput, linkInfo, sourceFor, urlImportJob, validateUrl } from "./web.js";
@@ -58,6 +58,12 @@ export async function waitJobs(ids: string[], seconds: number) {
 }
 
 export { cancelJob, waitForJob };
+
+/** job_cancel: the job's view plus what cancelling actually did. */
+export function cancelJobView(id: string) {
+  const o = cancelJobDetailed(id);
+  return { ...jobView(o.job), cancelled: o.cancelled, note: o.note };
+}
 
 // ------------------------------------------------------------ projects
 export function projectOpen(name?: string, create = true) {
@@ -222,6 +228,13 @@ export async function doctor() {
     const missing = need.filter((n) => !new RegExp(`\\s${n}\\s`).test(f.stdout));
     if (missing.length) issues.push(`ffmpeg is missing filters: ${missing.join(", ")} (subtitles needs libass). ${ffmpegInstallHint()}`);
     out.ffmpegFilters = missing.length ? { missing } : "all present";
+    // Informational only (never an issue): older ffmpeg builds still draw captions, just without Indic shaping.
+    const { assShapingSupported } = await import("./ffmpeg.js");
+    out.captionShaping = !getConfig().features.shapedCaptions
+      ? "off (features.shapedCaptions is false)"
+      : assShapingSupported(ffmpegBin())
+        ? "complex (Gurmukhi/Devanagari shaped correctly)"
+        : "simple (this ffmpeg's ass filter has no shaping option; Indic vowel signs may look wrong)";
   } catch (e) {
     issues.push(`ffmpeg not found (${(e as Error).message}). ${ffmpegInstallHint()}`);
   }

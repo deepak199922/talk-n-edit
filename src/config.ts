@@ -39,6 +39,22 @@ export interface Config {
   python?: string;
   /** Chrome/Chromium for animated graphics (optional; macOS uses Remotion's own headless shell). */
   chrome?: string;
+  /**
+   * Switches for newer behaviour. Each one can be set to false in config.json to get the previous behaviour back.
+   * Every switch also falls back to the previous behaviour on its own if the new path fails.
+   */
+  features: Features;
+}
+
+export interface Features {
+  /** Draw captions with ffmpeg's `ass` filter and complex text shaping (correct Gurmukhi/Devanagari vowel signs). */
+  shapedCaptions: boolean;
+  /** Reuse a link's details (from link_info or an earlier download) for this many minutes instead of reading the page again. 0 = off. */
+  linkInfoCacheMinutes: number;
+  /** For start/end downloads of a video whose full copy is already in the project, cut the part locally instead of downloading it. */
+  localSectionCut: boolean;
+  /** Let job_cancel stop a job that another Talk-n-Edit server process (Claude Desktop vs Claude Code) is running. */
+  crossProcessCancel: boolean;
 }
 
 /** Folders people keep videos in. Windows calls Movies "Videos", and OneDrive may hold Desktop and Documents. */
@@ -65,6 +81,7 @@ const DEFAULTS: Config = {
   whisperModel: defaultWhisperModel(),
   limits: { maxImportGB: 20, maxOutputMinutes: 15 },
   defaultBrandKit: "default",
+  features: { shapedCaptions: true, linkInfoCacheMinutes: 60, localSectionCut: true, crossProcessCancel: true },
 };
 
 let cached: Config | null = null;
@@ -87,7 +104,12 @@ export function getConfig(): Config {
   } else {
     fs.writeFileSync(p, JSON.stringify(DEFAULTS, null, 2));
   }
-  const cfg: Config = { ...DEFAULTS, ...user, limits: { ...DEFAULTS.limits, ...(user.limits ?? {}) } };
+  const cfg: Config = {
+    ...DEFAULTS,
+    ...user,
+    limits: { ...DEFAULTS.limits, ...(user.limits ?? {}) },
+    features: { ...DEFAULTS.features, ...(user.features && typeof user.features === "object" ? user.features : {}) },
+  };
   cfg.importRoots = cfg.importRoots.map((r) => path.resolve(expandHome(r)));
   cfg.exportDir = path.resolve(expandHome(cfg.exportDir));
   cfg.inboxDir = path.resolve(expandHome(cfg.inboxDir));

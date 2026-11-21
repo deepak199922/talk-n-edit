@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.3: low-risk speed and fixes (switchable)
+
+Every change below has a switch under `features` in config.json; off = the 0.5.2 behaviour. See docs/REFERENCE.md.
+
+- **Fixed: broken Gurmukhi and Devanagari captions** (vowel signs in the wrong place, or dotted circles ◌ਿ). Captions now use ffmpeg's `ass` filter with complex shaping, and Indic lines use letter spacing 0 (libass shapes each letter separately when spacing isn't 0). English captions are unchanged. `system_doctor` shows `captionShaping`.
+- **Link details are read once:** `link_info` and downloads keep a link's details for an hour and hand them to yt-dlp, instead of reading the page up to three times (slow, and YouTube rate-limits it). Stale details fall back to reading the page again.
+- **Parts of a video you already have are cut locally:** a `start`/`end` import of a video whose full copy is in the project is cut from that copy (exact times, no download).
+- **`job_cancel` says what happened:** cancelling a job that already finished says so (`cancelled: false`, results untouched) instead of looking like it worked; and it can stop a job that the other server process (Claude Desktop vs Claude Code) is running.
+- Mixed versions: a server leaves queued jobs of kinds it doesn't know for a server that does, instead of failing them.
+- Clearer errors: a transition of 0 s explains the 0.05–2 s range and how to make a hard cut; the custom-effect `inputRange … [102,102]` error explains the fix.
+- Tests: `npm run test:features` tests every switch on and off and forces each fallback.
+
 ## 0.5.2: safety
 
 - **Custom effects are locked down further:** besides Node modules, network calls and `eval`, effects can no longer use bundler features (`require.context`, `import.meta`, `new URL(…)`) or bracket access to globals, which could have pulled files from disk into an effect.

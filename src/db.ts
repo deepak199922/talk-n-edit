@@ -41,6 +41,8 @@ export function getDb(): DatabaseSync {
   // v0.1.1: jobs remember which server process owns them.
   const cols = (db.prepare(`PRAGMA table_info(jobs)`).all() as Array<{ name: string }>).map((c) => c.name);
   if (!cols.includes("owner")) db.exec(`ALTER TABLE jobs ADD COLUMN owner INTEGER NOT NULL DEFAULT 0`);
+  // v0.5.3: a cancel request any server process can see (job_cancel from Claude Code for a job Claude Desktop runs).
+  if (!cols.includes("cancel_req")) db.exec(`ALTER TABLE jobs ADD COLUMN cancel_req INTEGER NOT NULL DEFAULT 0`);
   return db;
 }
 

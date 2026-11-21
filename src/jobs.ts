@@ -1,3 +1,4 @@
+import { getConfig } from "./config.js";
 import { getDb, now, parseRow } from "./db.js";
 import { asStudioError, StudioError } from "./errors.js";
 import { newId } from "./ids.js";
@@ -62,7 +63,7 @@ function alive(pid: number): boolean {
  */
 export function recoverJobs() {
   const db = getDb();
-  const rows = db.prepare(`SELECT id, status, owner FROM jobs WHERE status IN ('running','queued')`).all() as Array<{ id: string; status: string; owner: number }>;
+  const rows = db.prepare(`SELECT id, type, status, owner FROM jobs WHERE status IN ('running','queued')`).all() as Array<{ id: string; type: string; status: string; owner: number }>;
   for (const r of rows) {
     if (alive(r.owner)) continue;
     if (r.status === "running")
@@ -71,7 +72,8 @@ export function recoverJobs() {
         now(),
         r.id,
       );
-    else db.prepare(`UPDATE jobs SET owner=?, updated=? WHERE id=? AND status='queued'`).run(process.pid, now(), r.id);
+    // Queued jobs of a kind this version can't run are left for a server that can.
+    else if (defs.has(r.type)) db.prepare(`UPDATE jobs SET owner=?, updated=? WHERE id=? AND status='queued'`).run(process.pid, now(), r.id);
   }
   setImmediate(pump);
 }
@@ -112,14 +114,42 @@ function update(id: string, fields: Partial<Record<"status" | "stage" | "progres
 }
 
 export function cancelJob(id: string): JobRow {
+  return cancelJobDetailed(id).job;
+}
+
+export interface CancelOutcome {
+  job: JobRow;
+  /** true when the job was stopped or a stop was requested; false when there was nothing to cancel. */
+  cancelled: boolean;
+  note: string;
+}
+
+/** Cancel with an explanation of what actually happened (job_cancel shows this). */
+export function cancelJobDetailed(id: string): CancelOutcome {
   const job = getJob(id);
   if (!job) throw new StudioError("NOT_FOUND", `No job ${id}`);
-  if (job.status === "queued") update(id, { status: "cancelled", stage: "cancelled" });
-  if (job.status === "running") {
-    const r = running.get(job.queue);
-    if (r?.id === id) r.ctrl.abort();
+  if (job.status === "succeeded" || job.status === "failed" || job.status === "cancelled") {
+    return { job, cancelled: false, note: `Nothing to cancel: the job had already ${job.status === "cancelled" ? "been cancelled" : job.status} (at ${job.updated}). Its results are unchanged.` };
   }
-  return getJob(id)!;
+  if (job.status === "queued") {
+    update(id, { status: "cancelled", stage: "cancelled" });
+    return { job: getJob(id)!, cancelled: true, note: "Cancelled before it started." };
+  }
+  // running
+  const r = running.get(job.queue);
+  if (r?.id === id) {
+    r.ctrl.abort();
+    return { job: getJob(id)!, cancelled: true, note: "Stopping: the job is being stopped now." };
+  }
+  if (getConfig().features.crossProcessCancel) {
+    getDb().prepare(`UPDATE jobs SET cancel_req=1, updated=? WHERE id=? AND status='running'`).run(now(), id);
+    return {
+      job: getJob(id)!,
+      cancelled: true,
+      note: "Another Talk-n-Edit server (e.g. Claude Desktop vs Claude Code) is running this job; it was asked to stop and should within a few seconds. If it keeps running, that server is an older version: restart it.",
+    };
+  }
+  return { job, cancelled: false, note: "Another Talk-n-Edit server is running this job and cross-process cancel is switched off (features.crossProcessCancel)." };
 }
 
 /** Resolve when the job reaches a final state (used by the CLI). */
@@ -147,9 +177,12 @@ function pump() {
   try {
     for (const queue of ["analysis", "render", "download"] as Queue[]) {
       if (running.get(queue)) continue;
+      // Only jobs this version knows how to run (a newer server sharing the workspace may queue new kinds).
+      const types = [...defs.keys()];
+      if (!types.length) continue;
       const row = getDb()
-        .prepare(`SELECT id FROM jobs WHERE queue=? AND status='queued' AND owner=? ORDER BY created LIMIT 1`)
-        .get(queue, process.pid) as { id: string } | undefined;
+        .prepare(`SELECT id FROM jobs WHERE queue=? AND status='queued' AND owner=? AND type IN (${types.map(() => "?").join(",")}) ORDER BY created LIMIT 1`)
+        .get(queue, process.pid, ...types) as { id: string } | undefined;
       if (!row) continue;
       // Atomic claim: only one process can move a job from queued to running.
       const claimed = getDb()
@@ -169,6 +202,18 @@ async function start(id: string) {
   const ctrl = new AbortController();
   running.set(job.queue, { id, ctrl, started: Date.now() });
   let lastWrite = 0;
+  // Watch for a cancel request from another server process (job_cancel there can't reach this AbortController).
+  const watch = getConfig().features.crossProcessCancel
+    ? setInterval(() => {
+        try {
+          const row = getDb().prepare(`SELECT cancel_req FROM jobs WHERE id=?`).get(id) as { cancel_req?: number } | undefined;
+          if (row?.cancel_req) ctrl.abort();
+        } catch {
+          /* the database is busy; check again next tick */
+        }
+      }, 1000)
+    : null;
+  watch?.unref();
   const ctx: JobContext = {
     jobId: id,
     signal: ctrl.signal,
@@ -187,6 +232,7 @@ async function start(id: string) {
     if (err.code === "CANCELLED" || ctrl.signal.aborted) update(id, { status: "cancelled", stage: "cancelled" });
     else update(id, { status: "failed", stage: "failed", error: err.toJSON() });
   } finally {
+    if (watch) clearInterval(watch);
     running.set(job.queue, null);
     const done = getJob(id)!;
     for (const w of waiters.get(id) ?? []) w(done);

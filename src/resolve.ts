@@ -155,13 +155,24 @@ function hasTranscripts(ids: string[]): boolean {
   });
 }
 
+/** A plain-words fix for validation mistakes that come up often (added to the error's hint). */
+function knownFix(p: PropertyKey[], code: string): string | undefined {
+  const keys = p.map(String);
+  const last = keys[keys.length - 1];
+  if (last === "duration" && keys.some((k) => /^transition/.test(k)) && (code === "too_small" || code === "too_big"))
+    return "A transition lasts 0.05–2 s. For a hard cut, leave the transition out instead of setting 0.";
+  return undefined;
+}
+
 /** Parse + validate a timeline object (style defaults applied first); throws with a JSON path. */
 export function parseTimeline(json: unknown): Timeline {
   const { timeline } = applyStyle(json, hasTranscripts);
   const r = TimelineSchema.safeParse(timeline);
   if (!r.success) {
     const i = r.error.issues[0];
-    fail(i.path.join(".") || "(root)", i.message, r.error.issues.length > 1 ? `${r.error.issues.length} problems; fix this one first.` : undefined);
+    const where = i.path.join(".") || "(root)";
+    const more = r.error.issues.length > 1 ? `${r.error.issues.length} problems; fix this one first.` : undefined;
+    fail(where, i.message, [knownFix(i.path, i.code), more].filter(Boolean).join(" ") || undefined);
   }
   return r.data;
 }
