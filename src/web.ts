@@ -62,12 +62,25 @@ export function friendly(e: unknown, url: string, cookiesFromBrowser?: Browser):
       (cookiesFromBrowser ? "" : 'First retry with cookiesFromBrowser (e.g. "chrome" or "safari"). ') +
         "If that still fails: turn off any VPN or switch network (a phone hotspot works), or wait an hour or two. Or download the video in your browser and drop it into the Talk-n-Edit Inbox.",
     );
-  if (/Sign in to confirm|login required|cookies|private video|members-only|age/i.test(tail))
-    return new StudioError("ENGINE_FAILED", "The site wants you to be signed in for this video.", 'Retry with cookiesFromBrowser (e.g. "chrome" or "safari") to use your browser\'s sign-in.');
-  if (/HTTP Error 403|429|rate.?limit|Too Many Requests/i.test(tail))
-    return new StudioError("ENGINE_FAILED", "The site refused or rate-limited the download.", "Wait a few minutes, run setup again to update yt-dlp, or retry with cookiesFromBrowser.");
-  if (/Video unavailable|not available|removed|404/i.test(tail)) return new StudioError("NOT_FOUND", "That video isn't available (removed, private or region-locked).", se.hint);
+  // Whole words only: a bare "age" used to match "page" or "message", and "429"/"404" any number containing them,
+  // which showed a wrong "sign in" or "rate-limited" message. yt-dlp's own words are added to every hint below.
+  const said = ytdlpSaid(tail);
+  if (/Sign in to confirm|log ?in required|requires? (a )?log ?in|--cookies|cookies (are|is) (needed|required)|private video|members[- ]only|\bage[- ]?(restricted|gate|verification)|confirm your age|inappropriate for some users/i.test(tail))
+    return new StudioError("ENGINE_FAILED", "The site wants you to be signed in for this video.", 'Retry with cookiesFromBrowser (e.g. "chrome" or "safari") to use your browser\'s sign-in.' + said);
+  if (/HTTP Error (403|429)\b|\brate[- ]?limit|Too Many Requests/i.test(tail))
+    return new StudioError("ENGINE_FAILED", "The site refused or rate-limited the download.", "Wait a few minutes, run setup again to update yt-dlp, or retry with cookiesFromBrowser." + said);
+  if (/Video unavailable|not available|has been removed|HTTP Error 404\b/i.test(tail)) return new StudioError("NOT_FOUND", "That video isn't available (removed, private or region-locked).", ((se.hint ?? "") + said).trim() || undefined);
   return se instanceof StudioError ? se : new StudioError("ENGINE_FAILED", String(e));
+}
+
+/** yt-dlp's last ERROR line, to show next to our explanation (so a wrong guess never hides the real reason). */
+export function ytdlpSaid(text: string): string {
+  const found = text
+    .split(/\r?\n/)
+    .map((l) => /\bERROR:\s*(.+)$/.exec(l)?.[1]?.trim())
+    .filter((l): l is string => !!l);
+  const last = found[found.length - 1];
+  return last ? `\nyt-dlp said: ${last.slice(0, 300)}` : "";
 }
 
 // ------------------------------------------------------------------ source info

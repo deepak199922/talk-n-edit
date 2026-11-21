@@ -695,6 +695,15 @@ await group("links: import from a URL, discovery helpers", async () => {
   const bot2 = web.friendly(new Error(bot), "https://youtu.be/x", "chrome");
   check("YouTube bot check gets its own message", /isn't a bot/.test(bot1.message) && /cookiesFromBrowser/.test(bot1.hint), bot1.message);
   check("bot check with a sign-in already used suggests another network", !/First retry/.test(bot2.hint) && /VPN|network/.test(bot2.hint), bot2.hint);
+  // Error wording: no false "sign in" from words like "page"/"message", and yt-dlp's own words are shown.
+  const page = web.friendly(new Error("ERROR: [vimeo] 76979871: Unable to download webpage: HTTP Error 500: Internal Server Error"), "https://vimeo.com/76979871");
+  check("'webpage' in an error isn't read as a sign-in problem", !/signed in/.test(page.message), page.message);
+  const login = web.friendly(new Error("ERROR: [instagram] C5Qd: Requested content is not available, rate-limit reached or login required. Use --cookies-from-browser or --cookies for the authentication."), "https://www.instagram.com/reel/C5Qd/");
+  check("a real sign-in error still says so, with yt-dlp's words", /signed in/.test(login.message) && /yt-dlp said: \[instagram\]/.test(login.hint), login.hint);
+  const age = web.friendly(new Error("ERROR: [youtube] abc: Sign in to confirm your age. This video may be inappropriate for some users."), "https://youtu.be/abc");
+  check("age-restricted video asks for a sign-in", /signed in/.test(age.message), age.message);
+  const num = web.friendly(new Error("ERROR: [generic] video_4291: Unable to extract title"), "https://example.com/v");
+  check("a number like 4291 isn't read as HTTP 429", !/rate-limited/.test(num.message), num.message);
 
   const t = (d) => web.discoverTarget(d).target;
   check("discover: YouTube search", t({ query: "podcast clips" }) === "ytsearch10:podcast clips");

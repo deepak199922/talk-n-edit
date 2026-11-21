@@ -9,6 +9,7 @@ Every change below has a switch under `features` in config.json; off = the 0.5.2
 - **Parts of a video you already have are cut locally:** a `start`/`end` import of a video whose full copy is in the project is cut from that copy (exact times, no download).
 - **`job_cancel` says what happened:** cancelling a job that already finished says so (`cancelled: false`, results untouched) instead of looking like it worked; and it can stop a job that the other server process (Claude Desktop vs Claude Code) is running.
 - Mixed versions: a server leaves queued jobs of kinds it doesn't know for a server that does, instead of failing them.
+- **Fixed: wrong "sign in" and "rate-limited" messages for links.** Words like "webpage" matched the age-restriction check and any number containing 429 looked like a rate limit, so the real problem was hidden. Checks now match whole phrases, and every link error also shows yt-dlp's own words ("yt-dlp said: …").
 - Clearer errors: a transition of 0 s explains the 0.05–2 s range and how to make a hard cut; the custom-effect `inputRange … [102,102]` error explains the fix.
 - Tests: `npm run test:features` tests every switch on and off and forces each fallback.
 
