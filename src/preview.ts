@@ -54,7 +54,15 @@ export async function previewStills(timelineId: string, version: number | undefi
       }));
       const length = Math.max(1, ...layers.map((l) => l.from + l.spec.frames));
       const r = await renderStack(layers, length, gdir, signal, undefined, 0);
-      graphics.push({ dir: gdir, pattern: r.pattern, start: t, frames: 1, layer: 0 });
+      // Hold the picture for the frame before and after too: the video's frame times can sit a hair under the
+      // graphic's (22.599999 vs 22.6), and ffmpeg would then treat a one-frame graphic as not started yet.
+      const name = (i: number) => path.join(gdir, r.pattern.replace(/%0(\d+)d/, (_, w) => String(i).padStart(Number(w), "0")));
+      const before = fi > 0 ? 1 : 0;
+      const src = name(0);
+      const held: string[] = [];
+      for (let i = 0; i < before + 2; i++) held.push(i === 0 ? src : name(i));
+      for (let i = held.length - 1; i >= 1; i--) fs.copyFileSync(src, held[i]);
+      graphics.push({ dir: gdir, pattern: r.pattern, start: (fi - before) / res.fps, frames: held.length, layer: 0 });
     }
     const args = buildCommand(res, assFile, path.join(dir, "unused.mkv"), "draft", undefined, graphics, false);
     const fc = args.indexOf("-filter_complex");
