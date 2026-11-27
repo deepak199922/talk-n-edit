@@ -263,6 +263,24 @@ await group("hardware draft encoding switch", async () => {
   check("finals always x264 crf 18", fin.includes("libx264") && fin.includes("18") && !fin.includes("h264_videotoolbox"));
 });
 
+await group("graphic frame placement (matches ffmpeg, covers to the end)", async () => {
+  const f = config.getConfig().features;
+  // End card starting at 84.62 s that should run to the end of an 88.067 s video at 30 fps.
+  check("fix on: covers through the last frame", render.graphicFrames(84.62, 88.067, 30) === 2643 - 2538, render.graphicFrames(84.62, 88.067, 30));
+  check("whole-frame start unchanged", render.graphicFrames(3.4, 12.71, 30) === 280, render.graphicFrames(3.4, 12.71, 30));
+  f.graphicsFrameFix = false;
+  check("fix off: previous count", render.graphicFrames(84.62, 88.067, 30) === 103);
+  f.graphicsFrameFix = true;
+  // ffmpeg places frame 0 at floor(start × fps): a 16×16 white graphic starting at 0.05 s (1.5 frames) shows from frame 1.
+  const g = path.join(TMP, "g");
+  fs.mkdirSync(g, { recursive: true });
+  for (let i = 0; i < 3; i++) ff(["-f", "lavfi", "-i", "color=c=white:s=16x16", "-frames:v", "1", path.join(g, `g-${i}.png`)]);
+  const r = spawnSync(FF, ["-v", "error", "-f", "lavfi", "-i", "color=c=black:s=16x16:r=30:d=0.3", "-framerate", "30", "-start_number", "0", "-i", path.join(g, "g-%d.png"), "-filter_complex", "[1:v]format=rgba,setpts=PTS-STARTPTS+0.05/TB[g];[0:v][g]overlay=0:0:eof_action=pass:format=auto,format=gray", "-f", "rawvideo", "-"], { maxBuffer: 1 << 20 });
+  const lit = [];
+  for (let k = 0; k * 256 < r.stdout.length; k++) lit.push(r.stdout[k * 256] > 128 ? 1 : 0);
+  check("ffmpeg shows a graphic from floor(start × fps)", lit.indexOf(1) === 1, lit.join(""));
+});
+
 await group("sound packs and render credits", async () => {
   const dl = path.join(FIX, "My Download", "Impacts");
   fs.mkdirSync(dl, { recursive: true });

@@ -43,7 +43,7 @@ Full field list: [skills/talk-n-edit/references/timeline-spec.md](../skills/talk
 | `transcriptionBackend` | `auto` (`mlx` or `faster-whisper`) |
 | `limits` | `{ "maxImportGB": 20, "maxOutputMinutes": 15 }` |
 | `ffmpeg`, `ffprobe`, `python`, `chrome` | Auto-detected (on Windows also in winget, Scoop and Chocolatey folders); set a path to override |
-| `features` | `{ "shapedCaptions": true, "linkInfoCacheMinutes": 60, "localSectionCut": true, "crossProcessCancel": true, "graphicsCache": true, "graphicsCacheWarnGB": 20, "graphicsOnePass": true, "hwDraftEncode": true, "propTimeAnchors": true }`; see below |
+| `features` | `{ "shapedCaptions": true, "linkInfoCacheMinutes": 60, "localSectionCut": true, "crossProcessCancel": true, "graphicsCache": true, "graphicsCacheWarnGB": 20, "graphicsOnePass": true, "hwDraftEncode": true, "propTimeAnchors": true, "graphicsFrameFix": true }`; see below |
 
 ### Feature switches
 
@@ -59,6 +59,7 @@ Each switch can be turned off in `config.json` (e.g. `"features": { "localSectio
 | `graphicsOnePass` | Graphics that aren't cached yet and sit next to each other in stacking order are drawn together in one Remotion pass (one screenshot per frame instead of one per graphic per frame) and cached as one entry. | One pass per graphic. Also used automatically if a combined pass fails. |
 | `hwDraftEncode` | Drafts on a Mac are encoded with the hardware encoder (`h264_videotoolbox`). Finals always use x264 (crf 18). | x264 for drafts too. Also used automatically if the hardware encoder fails. |
 | `propTimeAnchors` | Overlay props may contain `{"$at": anchor}` (seconds from the overlay's start) or `{"$time": anchor}` (timeline seconds), where anchor is `{at}`, `{clip, sourceTime}` or `{clip, word, n?, edge?, offset?}`. | Props are passed through untouched. |
+| `graphicsFrameFix` | Each graphic covers every frame from its start to its end, so one that ends with the video (an end card) covers the last frame. | The earlier count, which could stop 1–2 frames early and show the bare video for the last frames. |
 | `graphicsCacheWarnGB` | Renders add a `note` when the graphics cache is bigger than this many GB. Nothing is removed automatically: `storage_report` shows what the cache holds (by project, Reel and age) and `storage_clean` removes what you pick. | `0` never warns. |
 
 Environment: `TALK_N_EDIT_HOME` moves the working folder. Installs from before the rename keep using `~/VideoStudio` and `~/Downloads/Video Studio`.

@@ -247,7 +247,9 @@ export async function drawGraphics(jobs: GraphicJob[], who: UsedBy | undefined, 
 async function drawStack(run: GraphicJob[], who: UsedBy | undefined, signal?: AbortSignal, onProgress?: (f: number) => void): Promise<DrawnInput> {
   const fps = run[0].spec.fps;
   const t0 = Math.min(...run.map((j) => j.start));
-  const layers: StackLayer[] = run.map((j) => ({ spec: j.spec, from: Math.max(0, Math.round((j.start - t0) * fps)) }));
+  // Same placement ffmpeg uses for a single graphic (frame 0 at floor(start × fps)), so stacking changes no timing.
+  const startFrame = (s: number) => Math.floor(s * fps + 1e-6);
+  const layers: StackLayer[] = run.map((j) => ({ spec: j.spec, from: Math.max(0, startFrame(j.start) - startFrame(t0)) }));
   const frames = Math.max(...layers.map((l) => l.from + l.spec.frames));
   const key = await stackKey(layers, frames);
   const final = path.join(graphicsCacheDir(), key);

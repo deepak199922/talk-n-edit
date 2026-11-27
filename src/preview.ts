@@ -11,7 +11,7 @@ import { StudioError } from "./errors.js";
 import { ffmpeg, r3 } from "./ffmpeg.js";
 import { linkDir } from "./platform.js";
 import { renderStack } from "./remotion.js";
-import { BATCH, buildCommand } from "./render.js";
+import { BATCH, buildCommand, graphicFrames } from "./render.js";
 import { resolveTimeline } from "./resolve.js";
 import { getTimeline } from "./store.js";
 
@@ -36,17 +36,19 @@ export async function previewStills(timelineId: string, version: number | undefi
     const fi = Math.max(0, Math.min(Math.round(t0 * res.fps), Math.floor(res.duration * res.fps) - 1));
     const t = fi / res.fps;
     // Graphics showing at t, bottom first (same order as a render), each at its own frame.
+    // Same frame a render shows: frame 0 at floor(start × fps), for graphicFrames frames.
+    const nth = (o: { start: number }) => fi - Math.floor(o.start * res.fps + 1e-6);
     const live = res.overlays
       .map((o, i) => ({ o, i }))
-      .filter(({ o }) => o.engine === "remotion" && t >= o.start && t < o.end)
+      .filter(({ o }) => o.engine === "remotion" && nth(o) >= 0 && nth(o) < graphicFrames(o.start, o.end, res.fps))
       .sort((p, q) => p.o.layer - q.o.layer || p.i - q.i)
       .map(({ o }) => o);
     const graphics: Array<{ dir: string; pattern: string; start: number; frames: number; layer: number }> = [];
     if (live.length) {
       const gdir = path.join(dir, `g${n}`);
       const layers = live.map((o) => ({
-        spec: { component: o.component, props: o.props, width: res.width, height: res.height, fps: res.fps, frames: Math.max(1, Math.round((o.end - o.start) * res.fps)), brand: res.brand },
-        from: -Math.max(0, Math.round((t - o.start) * res.fps)),
+        spec: { component: o.component, props: o.props, width: res.width, height: res.height, fps: res.fps, frames: graphicFrames(o.start, o.end, res.fps), brand: res.brand },
+        from: -nth(o),
       }));
       const r = await renderStack(layers, 1, gdir, signal);
       graphics.push({ dir: gdir, pattern: r.pattern, start: t, frames: 1, layer: 0 });

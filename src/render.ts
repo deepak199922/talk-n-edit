@@ -467,7 +467,7 @@ export async function renderJob(input: RenderJobInput, ctx: JobContext) {
   if (graphicsOverlays.length) {
     const who = { project: getProject(rnd.project_id).name, timeline: res.name };
     const jobs = graphicsOverlays.map((o) => ({
-      spec: { component: o.component, props: o.props, width: res.width, height: res.height, fps: res.fps, frames: Math.max(1, Math.round((o.end - o.start) * res.fps)), brand: res.brand },
+      spec: { component: o.component, props: o.props, width: res.width, height: res.height, fps: res.fps, frames: graphicFrames(o.start, o.end, res.fps), brand: res.brand },
       start: o.start,
       layer: o.layer,
       fallbackDir: path.join(dir, `graphic-${slug(o.id, 30)}`),
@@ -604,6 +604,17 @@ function safeCacheWarning(): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Frames a graphic needs. ffmpeg shows a graphic's frame 0 at output frame floor(start × fps) (setpts truncates).
+ * With features.graphicsFrameFix the count runs from there to the frame where it should end, so a graphic that ends
+ * with the video covers the last frame too (before, the count was rounded on its own and could stop 1–2 frames
+ * early, showing the bare video for the last frames). Off = the previous count.
+ */
+export function graphicFrames(start: number, end: number, fps: number): number {
+  if (getConfig().features.graphicsFrameFix === false) return Math.max(1, Math.round((end - start) * fps));
+  return Math.max(1, Math.ceil(end * fps - 1e-6) - Math.floor(start * fps + 1e-6));
 }
 
 /** Create a render row and queue the job. */

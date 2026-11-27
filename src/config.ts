@@ -65,6 +65,8 @@ export interface Features {
   graphicsOnePass: boolean;
   /** Encode drafts with the Mac's hardware encoder (h264_videotoolbox) when available. Finals always use x264. */
   hwDraftEncode: boolean;
+  /** Graphics cover every frame from their start to their end (a graphic ending with the video covers the last frame). */
+  graphicsFrameFix: boolean;
 }
 
 /** Folders people keep videos in. Windows calls Movies "Videos", and OneDrive may hold Desktop and Documents. */
@@ -91,7 +93,7 @@ const DEFAULTS: Config = {
   whisperModel: defaultWhisperModel(),
   limits: { maxImportGB: 20, maxOutputMinutes: 15 },
   defaultBrandKit: "default",
-  features: { shapedCaptions: true, linkInfoCacheMinutes: 60, localSectionCut: true, crossProcessCancel: true, graphicsCache: true, graphicsCacheWarnGB: 20, propTimeAnchors: true, graphicsOnePass: true, hwDraftEncode: true },
+  features: { shapedCaptions: true, linkInfoCacheMinutes: 60, localSectionCut: true, crossProcessCancel: true, graphicsCache: true, graphicsCacheWarnGB: 20, propTimeAnchors: true, graphicsOnePass: true, hwDraftEncode: true, graphicsFrameFix: true },
 };
 
 let cached: Config | null = null;
