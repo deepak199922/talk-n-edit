@@ -108,6 +108,14 @@ export interface ResolvedLayer {
   hasAudio: boolean;
 }
 
+export interface ResolvedVfx {
+  type: string;
+  start: number;
+  end: number;
+  intensity: number;
+  color?: string;
+}
+
 export interface Resolved {
   name: string;
   width: number;
@@ -121,6 +129,7 @@ export interface Resolved {
   segments: Segment[];
   captions?: { preset: CaptionPreset; words: TlWord[]; emphasis: "auto" | "none" | string[]; position: string; uppercase?: boolean; maxWordsPerLine?: number; size?: number };
   overlays: ResolvedOverlay[];
+  vfx: ResolvedVfx[];
   masks: ResolvedMask[];
   layers: ResolvedLayer[];
   audio: ResolvedAudio[];
@@ -286,6 +295,41 @@ function twoFaces(frames: Array<number[][]>): [FaceStat, FaceStat] | null {
   if (L.length < Math.max(2, frames.length * 0.25)) return null;
   const m = (arr: FaceStat[]): FaceStat => ({ cx: median(arr.map((s) => s.cx)), cy: median(arr.map((s) => s.cy)), h: median(arr.map((s) => s.h)) });
   return [m(L), m(R)];
+}
+
+type WordTime = (clipId: string, phrase: string, n: number, edge: "start" | "end", path: string) => number;
+
+/**
+ * Time anchors inside overlay props. Any value written as {"$at": anchor} becomes seconds from the overlay's start,
+ * {"$time": anchor} becomes seconds on the timeline. anchor is {at}, {clip, sourceTime} or {clip, word, n?, edge?}
+ * (word = a word or phrase she says in that clip; n = which occurrence, 1 = first; edge "start" (default) or "end").
+ * So times follow the speech when clips are trimmed or moved. Everything else is left exactly as written.
+ */
+export function resolvePropTimes(value: unknown, overlayStart: number, path: string, wordTime: WordTime, clipMap: (clipId: string, t: number) => number | null): any {
+  if (Array.isArray(value)) return value.map((v, i) => resolvePropTimes(v, overlayStart, `${path}[${i}]`, wordTime, clipMap));
+  if (!value || typeof value !== "object") return value;
+  const obj = value as Record<string, unknown>;
+  const keys = Object.keys(obj);
+  if (keys.length === 1 && (keys[0] === "$at" || keys[0] === "$time")) {
+    const a = obj[keys[0]] as Record<string, unknown> | null;
+    const p = `${path}.${keys[0]}`;
+    if (!a || typeof a !== "object") fail(p, "Time anchor must be an object", 'Use {"at": seconds}, {"clip": "id", "sourceTime": s} or {"clip": "id", "word": "text"}.');
+    let t: number;
+    if (typeof a.at === "number") t = a.at;
+    else if (typeof a.clip === "string" && typeof a.sourceTime === "number") {
+      const m = clipMap(a.clip, a.sourceTime);
+      if (m === null) fail(p, `Source time ${a.sourceTime}s is not inside clip "${a.clip}" after cuts`);
+      t = m;
+    } else if (typeof a.clip === "string" && typeof a.word === "string") {
+      const n = typeof a.n === "number" && a.n >= 1 ? Math.floor(a.n) : 1;
+      t = wordTime(a.clip, a.word, n, a.edge === "end" ? "end" : "start", p);
+    } else return fail(p, "Unknown time anchor", 'Use {"at": seconds}, {"clip": "id", "sourceTime": s} or {"clip": "id", "word": "text", "n": 1}.');
+    if (typeof a.offset === "number") t += a.offset;
+    return Math.round((keys[0] === "$at" ? t - overlayStart : t) * 1000) / 1000;
+  }
+  const out: Record<string, unknown> = {};
+  for (const k of keys) out[k] = resolvePropTimes(obj[k], overlayStart, `${path}.${k}`, wordTime, clipMap);
+  return out;
 }
 
 function resolveAnchor(anchor: Anchor, path: string, clipMap: (clipId: string, t: number) => number | null): number {
@@ -693,6 +737,24 @@ export function resolveTimeline(json: unknown, quality: "draft" | "final"): Reso
     captions = { preset, words, emphasis: c.emphasis, position: c.position, uppercase: c.uppercase, maxWordsPerLine: c.maxWordsPerLine, size: c.size };
   }
 
+  // Video effects. "shake" becomes a small shaking zoom (so no edges show); the rest are drawn over the picture.
+  const vfx: ResolvedVfx[] = [];
+  const shakeZooms: Array<{ s0: number; e0: number; scale: number; shake: number }> = [];
+  (tl.vfx ?? []).forEach((v, vi) => {
+    const s0 = resolveAnchor(v.start, `vfx[${vi}].start`, clipMap);
+    if (s0 >= duration) fail(`vfx[${vi}].start`, `Effect starts after the timeline ends (${r3(duration)}s)`);
+    const e0 = Math.min(duration, s0 + v.duration);
+    if (v.color !== undefined && !hexOk(v.color)) fail(`vfx[${vi}].color`, "color must be #RRGGBB");
+    if (v.type === "shake") shakeZooms.push({ s0, e0, scale: 1.04 + 0.08 * v.intensity, shake: v.intensity });
+    else vfx.push({ type: v.type, start: r3(s0), end: r3(e0), intensity: v.intensity, color: v.color });
+  });
+  for (const z of shakeZooms)
+    for (const seg of segments) {
+      if (seg.kind === "image") continue;
+      if (z.e0 <= seg.tlStart || z.s0 >= seg.tlStart + seg.tlDur) continue;
+      (seg.zooms ??= []).push({ a: z.s0 - seg.tlStart, b: z.e0 - seg.tlStart, scale: z.scale, x: 0.5, y: 0.5, ease: "smooth", ramp: 0.08, shake: z.shake });
+    }
+
   // Zoom keyframes → per-segment local events.
   (tl.zooms ?? []).forEach((z, zi) => {
     const s0 = resolveAnchor(z.start, `zooms[${zi}].start`, clipMap);
@@ -701,9 +763,33 @@ export function resolveTimeline(json: unknown, quality: "draft" | "final"): Reso
     for (const seg of segments) {
       if (seg.kind === "image") continue;
       if (e0 <= seg.tlStart || s0 >= seg.tlStart + seg.tlDur) continue;
-      (seg.zooms ??= []).push({ a: s0 - seg.tlStart, b: e0 - seg.tlStart, scale: z.scale, x: z.x, y: z.y, ease: z.ease, ramp: z.ramp });
+      (seg.zooms ??= []).push({ a: s0 - seg.tlStart, b: e0 - seg.tlStart, scale: z.scale, x: z.x, y: z.y, ease: z.ease, ramp: z.ramp, shake: z.shake });
     }
   });
+
+  // Spoken-word lookup for time anchors inside overlay props: {"$at": {clip, word, n?, edge?}}.
+  const wordTime = (clipId: string, phrase: string, n: number, edge: "start" | "end", path: string): number => {
+    const clip = tl.clips.find((c) => c.id === clipId);
+    if (!clip) fail(path, `No clip "${clipId}"`, "Use a clip id from this timeline.");
+    const words = getWords(getAsset(clip.assetId)) ?? [];
+    if (!words.length) fail(path, `Clip "${clipId}" has no transcript`, 'Run analyze with include:["transcript"] first, or use {clip, sourceTime}.');
+    const segs = segments.filter((s) => s.clipId === clipId && s.kind === "video");
+    const kept = (w: { s: number; e: number }) => segs.some((s) => w.s >= s.srcIn - 0.05 && w.e <= s.srcIn + s.srcDur + 0.05);
+    const toks = phrase.split(/\s+/).map(norm).filter(Boolean);
+    if (!toks.length) fail(path, "word is empty");
+    const inClip = words.filter(kept);
+    let seen = 0;
+    for (let i = 0; i + toks.length <= inClip.length; i++) {
+      if (!toks.every((t, k) => norm(inClip[i + k].w) === t)) continue;
+      if (++seen < n) continue;
+      const w = edge === "end" ? inClip[i + toks.length - 1].e : inClip[i].s;
+      const t = clipMap(clipId, w);
+      if (t === null) break;
+      return t;
+    }
+    const near = inClip.slice(0, 60).map((w) => w.w).join(" ");
+    return fail(path, `"${phrase}"${n > 1 ? ` (occurrence ${n})` : ""} is not spoken in the kept part of clip "${clipId}"`, near ? `Words in that clip start: ${near.slice(0, 300)}…` : undefined);
+  };
 
   // Overlays: text components drawn with libass, animated graphics with Remotion.
   const overlays: ResolvedOverlay[] = [];
@@ -713,8 +799,9 @@ export function resolveTimeline(json: unknown, quality: "draft" | "final"): Reso
     if (oids.has(o.id)) fail(`${p}.id`, `Duplicate overlay id "${o.id}"`);
     oids.add(o.id);
     const remotion = isGraphic(o.component);
-    const props = remotion ? validateGraphicProps(o.component, o.props, p) : validateOverlayProps(o.component, o.props, p);
     const start = resolveAnchor(o.start, `${p}.start`, clipMap);
+    const timed = getConfig().features.propTimeAnchors === false ? o.props : resolvePropTimes(o.props, start, `${p}.props`, wordTime, clipMap);
+    const props = remotion ? validateGraphicProps(o.component, timed, p) : validateOverlayProps(o.component, timed, p);
     if (start >= duration) fail(`${p}.start`, `Overlay starts at ${r3(start)}s, after the timeline ends (${r3(duration)}s)`);
     overlays.push({ id: o.id, component: o.component, engine: remotion ? "remotion" : "ass", start: r3(start), end: r3(Math.min(duration, start + o.duration)), props, layer: o.layer ?? 1 });
   });
@@ -826,6 +913,7 @@ export function resolveTimeline(json: unknown, quality: "draft" | "final"): Reso
     segments,
     captions,
     overlays,
+    vfx,
     masks,
     layers,
     audio,

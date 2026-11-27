@@ -7,6 +7,9 @@ import { asStudioError } from "./errors.js";
 import { readImageB64 } from "./media.js";
 import * as svc from "./service.js";
 import { storageClean, storageReport } from "./storage.js";
+import { applyPatch } from "./patch.js";
+import { previewStills } from "./preview.js";
+import { importPack, LICENSES } from "./sounds.js";
 import { BROWSERS } from "./web.js";
 import { APP_ROOT } from "./config.js";
 
@@ -234,6 +237,63 @@ export function createServer() {
       inputSchema: { timeline: z.record(z.string(), z.unknown()), save: z.boolean().default(true) },
     },
     wrap(async ({ timeline, save }) => ok(svc.timelineValidate(timeline, save))),
+  );
+
+  server.registerTool(
+    "timeline_patch",
+    {
+      description:
+        "Change a few values in a saved timeline without sending all of it: ops like {op:'set', path:'overlays[id=panel].props.rows[2].text', value:'…'}, {op:'remove', path:'zooms[1]'}, {op:'append', path:'overlays', value:{…}}. [n] = list index, [id=x] = list item by id. The result is validated and saved as the next version (nothing is saved if it's invalid); returns the same report as timeline_validate plus what changed.",
+      inputSchema: {
+        timelineId: z.string(),
+        version: z.number().int().positive().optional().describe("Version to start from (default: latest)"),
+        ops: z
+          .array(z.object({ op: z.enum(["set", "remove", "append"]), path: z.string().min(1), value: z.unknown().optional() }))
+          .min(1)
+          .max(100),
+      },
+    },
+    wrap(async ({ timelineId, version, ops }) => {
+      const base = svc.timelineGet({ timelineId, version }) as any;
+      const { json, changed } = applyPatch(base.timeline, ops as any);
+      return ok({ from: { timelineId, version: base.version }, changed, ...svc.timelineValidate(json, true) });
+    }),
+  );
+
+  server.registerTool(
+    "sound_pack_import",
+    {
+      description: `Import a folder of sounds the user downloaded (e.g. a Sonniss GDC bundle folder, Pixabay or CC0 Freesound downloads, own recordings) as a sound pack, with its licence recorded. Sounds become "library": "packs/<pack>/<name>" (listed in catalog_list sfx) and every render's credits list them with their licence. license: ${Object.keys(LICENSES).join(", ")} (non-commercial or no-derivatives licences are refused; CC-BY-4.0 needs an attribution line). Ask the user which licence the download came with; never guess.`,
+      inputSchema: {
+        folder: z.string(),
+        pack: z.string().min(1).max(60),
+        license: z.string(),
+        source: z.string().min(1).describe("Where it came from, e.g. 'Sonniss GDC 2026 bundle' or 'freesound.org user X'"),
+        url: z.string().optional(),
+        attribution: z.string().optional(),
+        notes: z.string().optional(),
+      },
+    },
+    wrap(async (a) => ok(importPack(a))),
+  );
+
+  server.registerTool(
+    "timeline_preview",
+    {
+      description:
+        "Still pictures of a saved timeline at chosen seconds (up to 8), drawn exactly as a render would (cuts, framing, zooms, look, captions, graphics at that frame), in seconds instead of a full render. Use it to check a fix to text, positions or timing before rendering. quality draft = 540 wide (fast), final = full size.",
+      inputSchema: {
+        timelineId: z.string(),
+        version: z.number().int().positive().optional(),
+        times: z.array(z.number().min(0)).min(1).max(8),
+        quality: z.enum(["draft", "final"]).default("draft"),
+      },
+      annotations: RO,
+    },
+    wrap(async ({ timelineId, version, times, quality }) => {
+      const r = await previewStills(timelineId, version, times, quality);
+      return ok(r, r.frames.map((f) => f.path));
+    }),
   );
 
   server.registerTool(

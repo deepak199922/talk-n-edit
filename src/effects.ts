@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { packSound } from "./sounds.js";
 import path from "node:path";
 import { LIBRARY } from "./config.js";
 import { StudioError } from "./errors.js";
@@ -96,6 +97,8 @@ export interface ZoomEvent {
   y: number;
   ease: "smooth" | "snap" | "linear";
   ramp: number;
+  /** 0..1 camera shake: the focus point wobbles (two out-of-step sines) inside the zoomed frame, so no edges show. */
+  shake?: number;
 }
 
 /** zoompan z/x/y expressions for a list of zoom events on one segment (time t = on/fps). */
@@ -110,8 +113,11 @@ export function zoomExpr(events: ZoomEvent[], fps: number): { z: string; x: stri
     let env = `clip(min((${t}-${r4(e.a)})/${r4(r)},(${r4(e.b)}-${t})/${r4(r)}),0,1)`;
     if (e.ease === "smooth") env = `(${env})*(${env})*(3-2*(${env}))`;
     terms.push(`${r4(e.scale - 1)}*${env}`);
-    xs.push(`between(${t},${r4(e.a)},${r4(e.b)})*${r4(e.x)}`);
-    ys.push(`between(${t},${r4(e.a)},${r4(e.b)})*${r4(e.y)}`);
+    const sh = e.shake ? Math.min(1, Math.max(0, e.shake)) * 0.45 : 0;
+    const jx = sh ? `+${r4(sh)}*(0.6*sin(2*PI*9.1*${t})+0.4*sin(2*PI*13.7*${t}+1.3))` : "";
+    const jy = sh ? `+${r4(sh)}*(0.6*sin(2*PI*7.3*${t}+0.7)+0.4*sin(2*PI*11.9*${t}+2.1))` : "";
+    xs.push(sh ? `between(${t},${r4(e.a)},${r4(e.b)})*clip(${r4(e.x)}${jx},0,1)` : `between(${t},${r4(e.a)},${r4(e.b)})*${r4(e.x)}`);
+    ys.push(sh ? `between(${t},${r4(e.a)},${r4(e.b)})*clip(${r4(e.y)}${jy},0,1)` : `between(${t},${r4(e.a)},${r4(e.b)})*${r4(e.y)}`);
   }
   const z = `1+${terms.join("+")}`;
   // Focus point: the active event's point (0.5 when none is active).
@@ -148,6 +154,11 @@ export function voiceFilters(fx?: { denoise?: boolean; enhance?: boolean }): str
 // ---------------------------------------------------------------- library sounds
 export function librarySound(ref: string): string {
   const clean = ref.replace(/\\/g, "/").replace(/^\/+/, "");
+  if (clean.startsWith("packs/")) {
+    const p = packSound(clean);
+    if (p) return p;
+    throw new StudioError("INVALID_INPUT", `Bad pack sound "${ref}"`, 'Use "packs/<pack>/<name>" from catalog_list sfx.');
+  }
   if (clean.includes("..") || clean.includes(":")) throw new StudioError("INVALID_INPUT", `Bad library path ${ref}`);
   const base = path.join(LIBRARY, clean);
   for (const ext of ["", ".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg"]) {

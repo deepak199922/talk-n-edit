@@ -200,14 +200,55 @@ function cleanError(e: unknown): string {
 export async function renderGraphic(spec: GraphicSpec, outDir: string, signal?: AbortSignal, onProgress?: (f: number) => void) {
   const fx = spec.component.startsWith("fx:") ? [spec.component.slice(3)] : [];
   if (!fx.length && !(spec.component in GRAPHICS)) throw new StudioError("INVALID_INPUT", `Unknown graphic ${spec.component}`);
+  return renderPngs("Graphic", inputProps(spec), fx, spec.frames, spec.component, outDir, signal, onProgress);
+}
+
+export interface StackLayer {
+  spec: GraphicSpec;
+  /** Frame (in the stack) where this graphic's frame 0 is drawn. */
+  from: number;
+}
+
+function stackProps(layers: StackLayer[], frames: number) {
+  const s0 = layers[0].spec;
+  return {
+    layers: layers.map((l) => ({ component: l.spec.component, props: l.spec.props, from: l.from, frames: l.spec.frames })),
+    brand: inputProps(s0).brand,
+    width: s0.width,
+    height: s0.height,
+    fps: s0.fps,
+    frames,
+  };
+}
+
+/** Draw several graphics in one pass, stacked in the given order (first = bottom). All must share size, fps and brand. */
+export async function renderStack(layers: StackLayer[], frames: number, outDir: string, signal?: AbortSignal, onProgress?: (f: number) => void) {
+  const fx: string[] = [];
+  for (const l of layers) {
+    const c = l.spec.component;
+    if (c.startsWith("fx:")) fx.push(c.slice(3));
+    else if (!(c in GRAPHICS)) throw new StudioError("INVALID_INPUT", `Unknown graphic ${c}`);
+  }
+  return renderPngs("Stack", stackProps(layers, frames), fx, frames, layers.map((l) => l.spec.component).join(" + "), outDir, signal, onProgress);
+}
+
+/** A key for a stack of graphics drawn together (changes when any member, its position or the length changes). */
+export async function stackKey(layers: StackLayer[], frames: number): Promise<string> {
+  const fx = layers.filter((l) => l.spec.component.startsWith("fx:")).map((l) => l.spec.component.slice(3));
+  const serveUrl = await ensureBundle(fx);
+  const h = crypto.createHash("sha1");
+  h.update(JSON.stringify({ v: 1, stack: true, bundle: path.basename(serveUrl), lib: libraryStamp(), input: stackProps(layers, frames) }));
+  return h.digest("hex").slice(0, 24);
+}
+
+async function renderPngs(id: string, props: Record<string, any>, fx: string[], frames: number, label: string, outDir: string, signal?: AbortSignal, onProgress?: (f: number) => void) {
   const serveUrl = await ensureBundle(fx);
   const { selectComposition, renderFrames, makeCancelSignal } = await import("@remotion/renderer");
   const cancel = makeCancelSignal();
   signal?.addEventListener("abort", () => cancel.cancel());
   fs.mkdirSync(outDir, { recursive: true });
-  const props = inputProps(spec);
   try {
-    const composition = await selectComposition({ serveUrl, id: "Graphic", inputProps: props, browserExecutable: browserExecutable(), logLevel: "error" } as any);
+    const composition = await selectComposition({ serveUrl, id, inputProps: props, browserExecutable: browserExecutable(), logLevel: "error" } as any);
     await renderFrames({
       composition,
       serveUrl,
@@ -218,15 +259,15 @@ export async function renderGraphic(spec: GraphicSpec, outDir: string, signal?: 
       cancelSignal: cancel.cancelSignal,
       logLevel: "error",
       onStart: () => undefined,
-      onFrameUpdate: (n: number) => onProgress?.(n / spec.frames),
+      onFrameUpdate: (n: number) => onProgress?.(n / frames),
     } as any);
   } catch (e) {
     if (signal?.aborted) throw new StudioError("CANCELLED", "Cancelled");
     const msg = cleanError(e);
-    throw new StudioError("ENGINE_FAILED", `Rendering ${spec.component} failed`, [msg, ...(fxHints([msg]) ?? [])].join("\n"));
+    throw new StudioError("ENGINE_FAILED", `Rendering ${label} failed`, [msg, ...(fxHints([msg]) ?? [])].join("\n"));
   }
   const files = fs.readdirSync(outDir).filter((f) => f.endsWith(".png")).sort();
-  if (!files.length) throw new StudioError("ENGINE_FAILED", `Rendering ${spec.component} produced no frames`);
+  if (!files.length) throw new StudioError("ENGINE_FAILED", `Rendering ${label} produced no frames`);
   const m = /^(.*?)(\d+)\.png$/.exec(files[0]);
   if (!m) throw new StudioError("ENGINE_FAILED", `Unexpected frame name ${files[0]}`);
   return { pattern: `${m[1]}%0${m[2].length}d.png`, frames: files.length };

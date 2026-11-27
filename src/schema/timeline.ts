@@ -103,6 +103,19 @@ export const ZoomSchema = z
     y: Unit.default(0.42).describe("focus point down the output frame"),
     ease: z.enum(["smooth", "snap", "linear"]).default("smooth"),
     ramp: z.number().min(0).max(2).default(0.35).describe("seconds to zoom in and out"),
+    shake: z.number().min(0).max(1).optional().describe("camera shake while zoomed (0 = none, 1 = strong)"),
+  })
+  .strict();
+
+export const VFX_TYPES = ["flash", "shake", "rgbSplit", "glitch", "blur", "vignette", "blackWhite", "invert", "punch", "ghost", "motionBlur", "letterbox", "grain"] as const;
+
+export const VfxSchema = z
+  .object({
+    type: z.enum(VFX_TYPES),
+    start: AnchorSchema,
+    duration: z.number().min(0.03).max(60),
+    intensity: z.number().min(0).max(1).default(0.5),
+    color: z.string().optional().describe("flash colour #RRGGBB (default white)"),
   })
   .strict();
 
@@ -218,6 +231,7 @@ export const TimelineSchema = z
       .describe("Snap clip cuts to the music's beats"),
     clips: z.array(ClipSchema).min(1).max(200),
     zooms: z.array(ZoomSchema).max(100).default([]),
+    vfx: z.array(VfxSchema).max(100).default([]).describe("Video effects on the picture for a stretch of time: flash, shake, rgbSplit, glitch, blur, vignette, blackWhite, invert, punch, ghost, motionBlur, letterbox, grain"),
     overlays: z.array(OverlaySchema).max(50).default([]),
     masks: z.array(MaskSchema).max(20).default([]),
     layers: z.array(LayerSchema).max(20).default([]),
@@ -238,6 +252,7 @@ export type AudioItem = z.infer<typeof AudioItemSchema>;
 export type Captions = z.infer<typeof CaptionsSchema>;
 export type Look = z.infer<typeof LookSchema>;
 export type Zoom = z.infer<typeof ZoomSchema>;
+export type Vfx = z.infer<typeof VfxSchema>;
 export type Mask = z.infer<typeof MaskSchema>;
 export type Layer = z.infer<typeof LayerSchema>;
 export type TransitionName = (typeof TRANSITIONS)[number];

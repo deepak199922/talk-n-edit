@@ -13,7 +13,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { getConfig, WORKSPACE } from "./config.js";
 import { StudioError } from "./errors.js";
-import { GraphicSpec, graphicKey, renderGraphic } from "./remotion.js";
+import { GraphicSpec, graphicKey, renderGraphic, renderStack, StackLayer, stackKey } from "./remotion.js";
 
 export const graphicsCacheDir = () => path.join(WORKSPACE, "cache", "graphics");
 const META = "meta.json";
@@ -163,6 +163,126 @@ export async function drawGraphic(
     // The frames in `part` are good; only the bookkeeping failed. Use them where they are.
     return { dir: part, pattern: r.pattern, frames: r.frames, cached: false };
   }
+}
+
+// ------------------------------------------------------------------ several graphics at once
+
+export interface GraphicJob {
+  spec: GraphicSpec;
+  /** Timeline seconds where the graphic's frame 0 shows. */
+  start: number;
+  layer: number;
+  fallbackDir: string;
+  label: string;
+}
+export interface DrawnInput extends Drawn {
+  start: number;
+  layer: number;
+  /** How many of the requested graphics this input carries (a stack carries several). */
+  members: number;
+}
+
+/**
+ * Draw all graphics of a render. Returns inputs in stacking order (bottom first, same order ffmpeg would use).
+ * With features.graphicsOnePass, graphics that are next to each other in that order and not cached yet are drawn
+ * together in one Remotion pass (one browser screenshot per frame instead of one per graphic per frame) and cached
+ * as one entry. Any problem with a stack falls back to drawing its graphics one by one.
+ */
+export async function drawGraphics(jobs: GraphicJob[], who: UsedBy | undefined, signal?: AbortSignal, onProgress?: (label: string, f: number) => void): Promise<{ inputs: DrawnInput[]; reused: number }> {
+  const sorted = jobs.map((j, i) => ({ j, i })).sort((p, q) => p.j.layer - q.j.layer || p.i - q.i).map((x) => x.j);
+  const f = getConfig().features;
+  const out: DrawnInput[] = [];
+  let reused = 0;
+  const total = sorted.length || 1;
+  let doneCount = 0;
+  const one = async (j: GraphicJob) => {
+    const r = await drawGraphic(j.spec, j.fallbackDir, who, signal, (x) => onProgress?.(j.label, (doneCount + x) / total));
+    doneCount++;
+    if (r.cached) reused++;
+    out.push({ ...r, start: j.start, layer: j.layer, members: 1 });
+  };
+  if (f.graphicsCache === false || f.graphicsOnePass === false || sorted.length < 2) {
+    for (const j of sorted) await one(j);
+    return { inputs: out, reused };
+  }
+  // Which graphics are already cached on their own?
+  const hit: Array<CacheMeta | null> = [];
+  for (const j of sorted) {
+    try {
+      hit.push(usable(path.join(graphicsCacheDir(), await graphicKey(j.spec))));
+    } catch (e) {
+      if (isCancel(e)) throw e;
+      hit.push(null);
+    }
+  }
+  const sameKind = (a: GraphicSpec, b: GraphicSpec) => a.width === b.width && a.height === b.height && a.fps === b.fps && JSON.stringify(a.brand) === JSON.stringify(b.brand);
+  let i = 0;
+  while (i < sorted.length) {
+    if (hit[i]) {
+      await one(sorted[i]);
+      i++;
+      continue;
+    }
+    let k = i + 1;
+    while (k < sorted.length && !hit[k] && sameKind(sorted[i].spec, sorted[k].spec)) k++;
+    const run = sorted.slice(i, k);
+    i = k;
+    if (run.length < 2) {
+      await one(run[0]);
+      continue;
+    }
+    try {
+      const d = await drawStack(run, who, signal, (x) => onProgress?.(`${run.length} graphics in one pass`, (doneCount + x * run.length) / total));
+      doneCount += run.length;
+      if (d.cached) reused += run.length;
+      out.push(d);
+    } catch (e) {
+      if (isCancel(e)) throw e;
+      for (const j of run) await one(j); // reports the real error if one of them is broken
+    }
+  }
+  return { inputs: out, reused };
+}
+
+async function drawStack(run: GraphicJob[], who: UsedBy | undefined, signal?: AbortSignal, onProgress?: (f: number) => void): Promise<DrawnInput> {
+  const fps = run[0].spec.fps;
+  const t0 = Math.min(...run.map((j) => j.start));
+  const layers: StackLayer[] = run.map((j) => ({ spec: j.spec, from: Math.max(0, Math.round((j.start - t0) * fps)) }));
+  const frames = Math.max(...layers.map((l) => l.from + l.spec.frames));
+  const key = await stackKey(layers, frames);
+  const final = path.join(graphicsCacheDir(), key);
+  const base = { start: t0, layer: run[0].layer, members: run.length };
+  const h = usable(final);
+  if (h) {
+    touch(final, h, who);
+    onProgress?.(1);
+    return { dir: final, pattern: h.pattern, frames: h.frames, cached: true, ...base };
+  }
+  const part = `${final}.part-${process.pid}-${Date.now()}`;
+  let r: { pattern: string; frames: number };
+  try {
+    r = await renderStack(layers, frames, part, signal, onProgress);
+  } catch (e) {
+    try {
+      fs.rmSync(part, { recursive: true, force: true });
+    } catch {
+      /* listed by storageReport */
+    }
+    throw e;
+  }
+  const stamp = new Date().toISOString();
+  writeMeta(part, { key, component: `stack: ${run.map((j) => j.spec.component).join(" + ")}`, pattern: r.pattern, frames: r.frames, bytes: dirBytes(part), created: stamp, lastUsed: stamp, usedBy: who ? [who] : [] });
+  try {
+    fs.renameSync(part, final);
+  } catch {
+    const other = usable(final);
+    if (other) {
+      fs.rmSync(part, { recursive: true, force: true });
+      return { dir: final, pattern: other.pattern, frames: other.frames, cached: true, ...base };
+    }
+    return { dir: part, pattern: r.pattern, frames: r.frames, cached: false, ...base };
+  }
+  return { dir: final, pattern: r.pattern, frames: r.frames, cached: false, ...base };
 }
 
 // ------------------------------------------------------------------ size, report and clean-up

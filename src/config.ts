@@ -59,6 +59,12 @@ export interface Features {
   graphicsCache: boolean;
   /** Renders add a note when the graphics cache is bigger than this many GB (0 = never). Nothing is removed automatically. */
   graphicsCacheWarnGB: number;
+  /** Overlay props may use {"$at": {clip, word}} / {"$time": …} time anchors. false = props are passed through untouched. */
+  propTimeAnchors: boolean;
+  /** Draw consecutive new graphics together in one Remotion pass instead of one pass per graphic. */
+  graphicsOnePass: boolean;
+  /** Encode drafts with the Mac's hardware encoder (h264_videotoolbox) when available. Finals always use x264. */
+  hwDraftEncode: boolean;
 }
 
 /** Folders people keep videos in. Windows calls Movies "Videos", and OneDrive may hold Desktop and Documents. */
@@ -85,7 +91,7 @@ const DEFAULTS: Config = {
   whisperModel: defaultWhisperModel(),
   limits: { maxImportGB: 20, maxOutputMinutes: 15 },
   defaultBrandKit: "default",
-  features: { shapedCaptions: true, linkInfoCacheMinutes: 60, localSectionCut: true, crossProcessCancel: true, graphicsCache: true, graphicsCacheWarnGB: 20 },
+  features: { shapedCaptions: true, linkInfoCacheMinutes: 60, localSectionCut: true, crossProcessCancel: true, graphicsCache: true, graphicsCacheWarnGB: 20, propTimeAnchors: true, graphicsOnePass: true, hwDraftEncode: true },
 };
 
 let cached: Config | null = null;

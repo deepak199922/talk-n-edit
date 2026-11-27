@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { listPackSounds } from "./sounds.js";
 import path from "node:path";
 import { z } from "zod";
 import { LIBRARY } from "./config.js";
@@ -218,7 +219,7 @@ export function catalog(kind: CatalogKind) {
     case "styles":
       return listStyles();
     case "sfx":
-      return listLibrary("sfx");
+      return [...listLibrary("sfx"), ...listPackSounds()];
     case "luts":
       return listLibrary("luts");
     case "transitions":

@@ -34,6 +34,21 @@ export function fq(s: string): string {
 }
 
 export const r3 = (n: number) => Math.round(n * 1000) / 1000;
+
+const encoderCache = new Map<string, boolean>();
+/** Whether this ffmpeg build has the named encoder (e.g. h264_videotoolbox). Checked once per process. */
+export function hasEncoder(name: string): boolean {
+  if (encoderCache.has(name)) return encoderCache.get(name)!;
+  let ok = false;
+  try {
+    const r = spawnSync(ffmpegBin(), ["-hide_banner", "-encoders"], { encoding: "utf8", timeout: 15000 });
+    ok = new RegExp(`\\s${name}\\s`).test(r.stdout ?? "");
+  } catch {
+    ok = false;
+  }
+  encoderCache.set(name, ok);
+  return ok;
+}
 export const even = (n: number) => Math.max(2, Math.round(n / 2) * 2);
 
 const shapingSupport = new Map<string, boolean>();

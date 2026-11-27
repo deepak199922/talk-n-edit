@@ -6,13 +6,14 @@ import { now } from "./db.js";
 import { atempoChain, lookFilters, voiceFilters, zoomExpr } from "./effects.js";
 import { linkDir } from "./platform.js";
 import { StudioError } from "./errors.js";
-import { captionFilter, ffmpeg, r3 } from "./ffmpeg.js";
+import { captionFilter, ffmpeg, hasEncoder, r3 } from "./ffmpeg.js";
 import { probe } from "./ffprobe.js";
 import { newId, slug } from "./ids.js";
 import { enqueue, JobContext } from "./jobs.js";
 import { assertWritable } from "./paths.js";
 import { quickQa } from "./qa.js";
-import { cacheWarning, drawGraphic } from "./gcache.js";
+import { cacheWarning, drawGraphics } from "./gcache.js";
+import { soundCredit } from "./sounds.js";
 import { Resolved, resolveTimeline, Segment } from "./resolve.js";
 import { getProject, getRender, getTimeline, insertRender, updateRender } from "./store.js";
 
@@ -201,6 +202,7 @@ export function buildCommand(
   quality: "draft" | "final",
   batches?: Array<{ file: string; frames: number; trans?: { xfade: string; frames: number } }>,
   graphics: GraphicInput[] = [],
+  hwDraft = false,
 ) {
   const inputs: string[] = [];
   const graph: string[] = [];
@@ -285,6 +287,15 @@ export function buildCommand(
     idx++;
   }
 
+  // Video effects for a stretch of time (drawn over the picture, under graphics and captions).
+  for (const v of res.vfx ?? []) {
+    const f = vfxFilters(v, res.width);
+    if (!f.length) continue;
+    const out = next();
+    graph.push(`${cur}${f.join(",")}${out}`);
+    cur = out;
+  }
+
   // Animated graphics (transparent PNG sequences from Remotion)
   for (const g of [...graphics].sort((p, q) => p.layer - q.layer)) {
     inputs.push("-framerate", String(res.fps), "-start_number", "0", "-i", path.join(g.dir, g.pattern));
@@ -337,17 +348,67 @@ export function buildCommand(
     aout = "[amix]";
   }
   const x264 = quality === "final" ? ["-preset", "medium", "-crf", "18"] : ["-preset", "veryfast", "-crf", "28"];
+  // Drafts only: the Mac's hardware encoder at a generous bitrate. Finals always use x264.
+  const venc = quality === "draft" && hwDraft ? ["-c:v", "h264_videotoolbox", "-b:v", `${Math.max(3, Math.round((res.width * res.height) / 90000))}M`] : ["-c:v", "libx264", ...x264];
   return [
     ...inputs,
     "-filter_complex", graph.join(";\n"),
     "-map", vfinal, "-map", aout,
-    "-c:v", "libx264", ...x264, "-profile:v", "high", "-pix_fmt", "yuv420p",
+    ...venc, "-profile:v", "high", "-pix_fmt", "yuv420p",
     "-color_range", "tv", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709",
     "-r", String(res.fps), "-g", String(res.fps * 2),
     "-c:a", "pcm_s16le", "-ar", "48000",
     "-t", String(res.duration),
     outFile,
   ];
+}
+
+/** ffmpeg filters for one video effect, each switched on only between its start and end. */
+export function vfxFilters(v: { type: string; start: number; end: number; intensity: number; color?: string }, width: number): string[] {
+  const k = Math.max(0, Math.min(1, v.intensity));
+  const on = (expr = "") => `enable='between(t,${v.start},${v.end})${expr}'`;
+  const px = (f: number) => Math.max(1, Math.round(width * f * (0.3 + k)));
+  switch (v.type) {
+    case "flash": {
+      // Bright at the start, fading out in four steps over the effect's length.
+      const c = (v.color ?? "#FFFFFF").replace("#", "0x");
+      const d = (v.end - v.start) / 4;
+      return [0, 1, 2, 3].map((i) => {
+        const a = Math.round((0.35 + 0.6 * k) * (1 - i / 4) * 100) / 100;
+        const s = Math.round((v.start + i * d) * 1000) / 1000;
+        const e = Math.round((v.start + (i + 1) * d) * 1000) / 1000;
+        return `drawbox=x=0:y=0:w=iw:h=ih:color=${c}@${a}:t=fill:enable='between(t,${s},${e})'`;
+      });
+    }
+    case "rgbSplit":
+      return [`rgbashift=rh=-${px(0.006)}:bh=${px(0.006)}:${on()}`];
+    case "glitch": {
+      const flick = "*lt(mod(t*12,1),0.55)";
+      return [`rgbashift=rh=-${px(0.012)}:gv=${px(0.004)}:bh=${px(0.01)}:${on(flick)}`, `noise=alls=${Math.round(10 + 30 * k)}:allf=t+u:${on(flick)}`, `eq=contrast=${(1.1 + 0.3 * k).toFixed(2)}:${on(flick)}`];
+    }
+    case "blur":
+      return [`gblur=sigma=${(3 + 25 * k).toFixed(1)}:${on()}`];
+    case "vignette":
+      return [`vignette=angle=${(0.35 + 0.6 * k).toFixed(2)}:${on()}`];
+    case "blackWhite":
+      return [`hue=s=${(1 - k).toFixed(2)}:${on()}`];
+    case "invert":
+      return [`negate=${on()}`];
+    case "punch":
+      return [`eq=contrast=${(1 + 0.35 * k).toFixed(2)}:saturation=${(1 + 0.6 * k).toFixed(2)}:${on()}`];
+    case "ghost":
+      return [`lagfun=decay=${(0.8 + 0.18 * k).toFixed(2)}:${on()}`];
+    case "motionBlur":
+      return [`tmix=frames=${2 + Math.round(4 * k)}:${on()}`];
+    case "letterbox": {
+      const h = `ih*${(0.06 + 0.08 * k).toFixed(3)}`;
+      return [`drawbox=x=0:y=0:w=iw:h=${h}:color=black:t=fill:${on()}`, `drawbox=x=0:y=ih-${h}:w=iw:h=${h}:color=black:t=fill:${on()}`];
+    }
+    case "grain":
+      return [`noise=alls=${Math.round(6 + 24 * k)}:allf=t:${on()}`];
+    default:
+      return [];
+  }
 }
 
 function parseLoudnorm(stderr: string): Record<string, string> | null {
@@ -381,6 +442,13 @@ export async function renderJob(input: RenderJobInput, ctx: JobContext) {
   ctx.progress("resolving timeline", 0.01);
   const res = resolveTimeline(tl.json, rnd.quality);
   fs.writeFileSync(path.join(dir, "resolved.json"), JSON.stringify(res, null, 1));
+  // Where every sound came from, and its licence (credits.json in the render folder).
+  const credits = renderCredits(tl.json as any);
+  try {
+    fs.writeFileSync(path.join(dir, "credits.json"), JSON.stringify(credits, null, 1));
+  } catch {
+    /* informational only */
+  }
   const ass = buildAss(res);
   let assFile: string | null = null;
   if (ass) {
@@ -398,19 +466,16 @@ export async function renderJob(input: RenderJobInput, ctx: JobContext) {
   let reused = 0;
   if (graphicsOverlays.length) {
     const who = { project: getProject(rnd.project_id).name, timeline: res.name };
-    for (let i = 0; i < graphicsOverlays.length; i++) {
-      const o = graphicsOverlays[i];
-      const gdir = path.join(dir, `graphic-${slug(o.id, 30)}`);
-      const r = await drawGraphic(
-        { component: o.component, props: o.props, width: res.width, height: res.height, fps: res.fps, frames: Math.max(1, Math.round((o.end - o.start) * res.fps)), brand: res.brand },
-        gdir,
-        who,
-        ctx.signal,
-        (f) => ctx.progress(`animating ${o.component} (${i + 1}/${graphicsOverlays.length})`, 0.03 + 0.2 * ((i + f) / graphicsOverlays.length)),
-      );
-      if (r.cached) reused++;
-      graphics.push({ dir: r.dir, pattern: r.pattern, start: o.start, frames: r.frames, layer: o.layer });
-    }
+    const jobs = graphicsOverlays.map((o) => ({
+      spec: { component: o.component, props: o.props, width: res.width, height: res.height, fps: res.fps, frames: Math.max(1, Math.round((o.end - o.start) * res.fps)), brand: res.brand },
+      start: o.start,
+      layer: o.layer,
+      fallbackDir: path.join(dir, `graphic-${slug(o.id, 30)}`),
+      label: o.component,
+    }));
+    const drawn = await drawGraphics(jobs, who, ctx.signal, (label, f) => ctx.progress(`animating ${label}`, 0.03 + 0.2 * Math.min(1, f)));
+    reused = drawn.reused;
+    for (const g of drawn.inputs) graphics.push({ dir: g.dir, pattern: g.pattern, start: g.start, frames: g.frames, layer: g.layer });
     p0 = 0.23;
   }
 
@@ -440,15 +505,26 @@ export async function renderJob(input: RenderJobInput, ctx: JobContext) {
     }
     mainStart = 0.55;
   }
-  const args = buildCommand(res, assFile, pre, rnd.quality, batches, graphics);
-  fs.writeFileSync(path.join(dir, "ffmpeg-args.json"), JSON.stringify(args, null, 1));
-  await ffmpeg(args, {
-    cwd: dir,
-    duration: res.duration,
-    signal: ctx.signal,
-    label: "ffmpeg render",
-    onProgress: (f) => ctx.progress("rendering video", mainStart + (0.85 - mainStart) * f),
-  });
+  const hw = rnd.quality === "draft" && getConfig().features.hwDraftEncode !== false && process.platform === "darwin" && hasEncoder("h264_videotoolbox");
+  const runMain = async (useHw: boolean) => {
+    const args = buildCommand(res, assFile, pre, rnd.quality, batches, graphics, useHw);
+    fs.writeFileSync(path.join(dir, "ffmpeg-args.json"), JSON.stringify(args, null, 1));
+    await ffmpeg(args, {
+      cwd: dir,
+      duration: res.duration,
+      signal: ctx.signal,
+      label: "ffmpeg render",
+      onProgress: (f) => ctx.progress("rendering video", mainStart + (0.85 - mainStart) * f),
+    });
+  };
+  if (hw) {
+    try {
+      await runMain(true);
+    } catch (e) {
+      if (ctx.signal?.aborted) throw e;
+      await runMain(false); // hardware encoder refused this one: same draft with x264
+    }
+  } else await runMain(false);
 
   // 3. Loudness + finish.
   const target = res.mix.targetLufs;
@@ -492,8 +568,33 @@ export async function renderJob(input: RenderJobInput, ctx: JobContext) {
     qa: qa.summary,
     warnings: res.warnings,
     graphics: graphicsInfo,
+    credits: credits.sounds.length || credits.yourFiles.length ? credits : undefined,
     note: safeCacheWarning(),
     clips: res.clipsSummary,
+  };
+}
+
+/** Sounds and files a timeline uses, with their licences (from sound pack records). */
+export function renderCredits(tl: { audio?: Array<{ library?: string; assetId?: string }>; sfxOnTransitions?: string; layers?: Array<{ assetId?: string }> }) {
+  const refs = new Set<string>();
+  for (const a of tl.audio ?? []) if (a.library) refs.add(a.library);
+  if (tl.sfxOnTransitions) refs.add(tl.sfxOnTransitions);
+  const sounds = [...refs].map((r) => {
+    try {
+      return soundCredit(r);
+    } catch {
+      return { ref: r, license: "UNKNOWN", source: "?" };
+    }
+  });
+  const yourFiles = [...new Set((tl.audio ?? []).map((a) => a.assetId).filter((x): x is string => !!x))];
+  const attribution = sounds.map((s) => (s as any).attribution).filter(Boolean) as string[];
+  const unknown = sounds.filter((s) => /UNKNOWN/.test(s.license)).map((s) => s.ref);
+  return {
+    sounds,
+    yourFiles,
+    attributionNeeded: attribution.length ? attribution : undefined,
+    warning: unknown.length ? `No licence record for: ${unknown.join(", ")}` : undefined,
+    note: yourFiles.length ? "Audio files you imported yourself (yourFiles) must be yours or licensed for this use." : undefined,
   };
 }
 
