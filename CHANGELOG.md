@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased (0.5.4): faster re-renders, disk space tools (switchable)
+
+- **Graphics are reused between renders.** Each animated graphic is drawn once into `cache/graphics` and reused by any render that needs exactly the same one, so a fix to one overlay redraws only that overlay, and graphics shared by several videos (a credit badge, an end card) are drawn once. Render results show `graphics: { drawn, reused }`. Switch: `features.graphicsCache`.
+- **Nothing is removed automatically.** Renders add a note when the cache passes `features.graphicsCacheWarnGB` (default 20 GB).
+- **New tools:** `storage_report` shows what is using space (cached graphics by project, Reel and age; leftover frames and in-between video in old renders). `storage_clean` removes what you pick, as a dry run unless `apply: true`; finished videos, sources, analyses and timelines are never touched, and graphics used in the last 6 hours are skipped.
+- Tests: `npm run test:storage`.
+
 ## 0.5.3: low-risk speed and fixes (switchable)
 
 Every change below has a switch under `features` in config.json; off = the 0.5.2 behaviour. See docs/REFERENCE.md.

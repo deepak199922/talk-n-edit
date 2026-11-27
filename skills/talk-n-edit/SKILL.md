@@ -70,4 +70,8 @@ Rules: never invent asset ids, sentence ids, components, presets or sounds. Clip
 
 ## Good defaults when the user doesn't care
 
-9:16, 30 fps; captions karaoke-highlight; HookText at 0 s; removeSilences 0.5; crossfade 0.25 s between clips; autoPunch 1.12 on talking heads; music at 0.3 if they gave music; QA before delivery. Originals are never modified and the toolkit never deletes files.
+9:16, 30 fps; captions karaoke-highlight; HookText at 0 s; removeSilences 0.5; crossfade 0.25 s between clips; autoPunch 1.12 on talking heads; music at 0.3 if they gave music; QA before delivery. Originals are never modified and the toolkit never deletes files on its own.
+
+## Disk space
+
+Drawn graphics are cached and reused across renders. If a render result has a `note` about the cache size, or the user asks about space, run `storage_report`, show the biggest items, and use `storage_clean` only for what the user picks: run it once as a dry run, show what it would remove, and call it with `apply: true` only after they confirm.

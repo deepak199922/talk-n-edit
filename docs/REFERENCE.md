@@ -18,7 +18,7 @@
 
 ## Tools (MCP)
 
-`system_doctor`, `project_open`, `media_import`, `media_import_url` (download from a link, optionally only `start`–`end`; `cookiesFromBrowser` for signed-in videos), `link_info` (look at a link without downloading: chapters, most-replayed moments, resolutions), `discover_videos` (YouTube search, channel videos/Shorts/streams, Twitch clips/VODs, any listable link), `media_inspect`, `analyze` (transcript, faces, scenes, beats), `analysis_get`, `transcript_get`, `frames_get`, `catalog_list`, `timeline_validate`, `timeline_get`, `render_start`, `job_status`, `job_cancel`, `qa_check`, `style_save`, `fx_create`, `open_in_player`.
+`system_doctor`, `project_open`, `media_import`, `media_import_url` (download from a link, optionally only `start`–`end`; `cookiesFromBrowser` for signed-in videos), `link_info` (look at a link without downloading: chapters, most-replayed moments, resolutions), `discover_videos` (YouTube search, channel videos/Shorts/streams, Twitch clips/VODs, any listable link), `media_inspect`, `analyze` (transcript, faces, scenes, beats), `analysis_get`, `transcript_get`, `frames_get`, `catalog_list`, `timeline_validate`, `timeline_get`, `render_start`, `job_status`, `job_cancel`, `storage_report` (what is using disk space), `storage_clean` (remove picked cached graphics or old render leftovers; dry run unless `apply: true`), `qa_check`, `style_save`, `fx_create`, `open_in_player`.
 
 `analysis_get` with `kind: "source"` returns a link import's title, channel, views, chapters and YouTube's most-replayed moments, in the downloaded file's time.
 
@@ -43,7 +43,7 @@ Full field list: [skills/talk-n-edit/references/timeline-spec.md](../skills/talk
 | `transcriptionBackend` | `auto` (`mlx` or `faster-whisper`) |
 | `limits` | `{ "maxImportGB": 20, "maxOutputMinutes": 15 }` |
 | `ffmpeg`, `ffprobe`, `python`, `chrome` | Auto-detected (on Windows also in winget, Scoop and Chocolatey folders); set a path to override |
-| `features` | `{ "shapedCaptions": true, "linkInfoCacheMinutes": 60, "localSectionCut": true, "crossProcessCancel": true }`; see below |
+| `features` | `{ "shapedCaptions": true, "linkInfoCacheMinutes": 60, "localSectionCut": true, "crossProcessCancel": true, "graphicsCache": true, "graphicsCacheWarnGB": 20 }`; see below |
 
 ### Feature switches
 
@@ -55,6 +55,8 @@ Each switch can be turned off in `config.json` (e.g. `"features": { "localSectio
 | `linkInfoCacheMinutes` | A link's details (from `link_info` or a download) are kept this many minutes and given to yt-dlp, so the page is read once instead of up to three times. | `0` reads the page every time. Expired or broken saved details are ignored and the page is read again; the result's `notes` says so. |
 | `localSectionCut` | A `start`/`end` import of a video whose full copy is already in the project is cut from that copy (exact times, nothing downloaded). Not used when a sharper version is available online. | Downloads the part with yt-dlp, as before; also used if the copy is missing or the cut fails (`notes` says so). |
 | `crossProcessCancel` | `job_cancel` can stop a job another Talk-n-Edit server (Claude Desktop vs Claude Code) is running. | Only jobs of this server can be stopped. |
+| `graphicsCache` | Each animated graphic is drawn once into `cache/graphics` and reused by any later render that needs exactly the same graphic (same code, settings, size, length and brand), so a fix to one overlay redraws only that overlay. Render results show `graphics: { drawn, reused }`. | Every render draws all its graphics into its own folder, as before. Also used automatically if the cache can't be used. |
+| `graphicsCacheWarnGB` | Renders add a `note` when the graphics cache is bigger than this many GB. Nothing is removed automatically: `storage_report` shows what the cache holds (by project, Reel and age) and `storage_clean` removes what you pick. | `0` never warns. |
 
 Environment: `TALK_N_EDIT_HOME` moves the working folder. Installs from before the rename keep using `~/VideoStudio` and `~/Downloads/Video Studio`.
 
@@ -88,6 +90,8 @@ npm run cli -- render timeline.json final
 ```bash
 npm test               # full end-to-end suite (~10 min) in a temp folder
 npm test -- --quick    # skips 4K, multi-process and MCP cases
+npm run test:features  # config.json switches, each on and off
+npm run test:storage   # graphics cache bookkeeping, storage_report and storage_clean
 ```
 
 Set `FACE_IMAGE=/path/to/portrait.jpg` to include the face-tracking and split-screen cases, and `VS_TEST_MODEL=<model or path>` to pick the Whisper model. The suite never touches your real workspace.

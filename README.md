@@ -41,7 +41,7 @@ https://github.com/user-attachments/assets/8b431e8a-885f-43b5-ba69-64d8c707d2d9
 - **Your language.** Word-by-word captions in English, Hindi, Punjabi and more, including Hinglish (Hindi in Roman script) and translations.
 - **Private.** Your video files stay on your computer: transcription, face tracking and rendering all run locally, and Talk-n-Edit collects no data. Claude only sees what it needs to edit, like the transcript and a few preview frames.
 - **No per-video fees.** It uses the Claude app you already have. There are no credits or watermarks.
-- **Safe with your files.** Originals are never changed, and Talk-n-Edit never deletes anything.
+- **Safe with your files.** Originals are never changed, and Talk-n-Edit never deletes anything on its own. It only clears its own working files when you ask (`storage_clean`).
 
 ## Install
 
@@ -126,7 +126,7 @@ Claude decides *what* the video should be: which moments, which hook, which effe
 | `~/TalkNEdit` | Working files: copies of your imports, drafts, renders, saved styles, custom graphics |
 | `~/talk-n-edit` | The app itself |
 
-Talk-n-Edit never deletes anything. Old drafts stay in `~/TalkNEdit/projects` until you remove them.
+Talk-n-Edit never deletes anything on its own. Old drafts stay in `~/TalkNEdit/projects`, and drawn graphics are kept in `~/TalkNEdit/cache/graphics` so later renders can reuse them. Ask Claude "how much space is Talk-n-Edit using?" (`storage_report`) and "clear the cached graphics for project X" or "clear old render files" (`storage_clean`, which shows what it would remove first). Your videos, sources and finished clips are never touched.
 
 ## Updating
 
