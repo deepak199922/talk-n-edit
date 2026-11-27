@@ -572,7 +572,23 @@ await group("v0.2: animated graphics + custom effects", async () => {
   const t0 = Date.now();
   const r = await render(tl);
   check(`all ${new Set(comps.map((c) => c[0])).size} animated components render (${((Date.now() - t0) / 1000).toFixed(0)} s)`, r.qa.fail === 0);
-  const dir = path.dirname(r.output);
+  check("graphics change the picture", absDiff(frameBytes(r.output, 0.6), frameBytes(F.square25, 0.6, "crop=ih*9/16:ih")) > 3);
+  // Default (0.5.4): graphics are drawn into the shared cache (consecutive new ones in one pass), not the render folder.
+  check("render reports every graphic as drawn", r.graphics?.drawn === comps.length && r.graphics?.reused === 0, JSON.stringify(r.graphics));
+  const again = await render(tl);
+  check("re-render reuses every graphic", again.graphics?.reused === comps.length && again.graphics?.drawn === 0, JSON.stringify(again.graphics));
+  check("re-render looks the same", absDiff(frameBytes(r.output, 0.6), frameBytes(again.output, 0.6)) < 1);
+  // With the cache off (0.5.3 behaviour), each graphic is drawn into the render folder: check each one draws pixels.
+  const feats = config.getConfig().features;
+  const savedFeats = { ...feats };
+  Object.assign(feats, { graphicsCache: false, graphicsOnePass: false });
+  let perGraphic;
+  try {
+    perGraphic = await render(base("graphics-per-folder", { clips: tl.clips, overlays: tl.overlays }));
+  } finally {
+    Object.assign(feats, savedFeats);
+  }
+  const dir = path.dirname(perGraphic.output);
   const gdirs = fs.readdirSync(dir).filter((d) => d.startsWith("graphic-"));
   const drawn = gdirs.filter((g) => {
     const files = fs.readdirSync(path.join(dir, g)).filter((f) => f.endsWith(".png")).sort();
@@ -580,7 +596,7 @@ await group("v0.2: animated graphics + custom effects", async () => {
     return mean(frameBytes(mid, 0, "alphaextract", "16:16")) > 0.5;
   });
   check("every graphic draws visible pixels", drawn.length === comps.length, `${drawn.length}/${comps.length}`);
-  check("graphics change the picture", absDiff(frameBytes(r.output, 0.6), frameBytes(F.square25, 0.6, "crop=ih*9/16:ih")) > 3);
+  check("one-pass + cache look the same as one-by-one", absDiff(frameBytes(r.output, 0.6), frameBytes(perGraphic.output, 0.6)) < 2);
 
   const good = `import React from "react";\nimport { AbsoluteFill, useCurrentFrame, interpolate } from "remotion";\nexport default function Bar(props: any) {\n  const f = useCurrentFrame();\n  return <AbsoluteFill><div style={{ position: "absolute", left: 0, top: "45%", height: "10%", width: interpolate(f, [0, 20], [0, 100], { extrapolateRight: "clamp" }) + "%", background: props.color ?? "#00FF88" }} /></AbsoluteFill>;\n}\n`;
   const c1 = await svc.fxCreate({ name: "e2e-bar", description: "test bar", code: good, defaultProps: { color: "#00FF88" }, defaultDuration: 1 });
