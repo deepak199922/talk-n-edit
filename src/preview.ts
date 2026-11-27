@@ -46,11 +46,14 @@ export async function previewStills(timelineId: string, version: number | undefi
     const graphics: Array<{ dir: string; pattern: string; start: number; frames: number; layer: number }> = [];
     if (live.length) {
       const gdir = path.join(dir, `g${n}`);
+      // Stack frame 0 = this moment: each layer starts nth(o) frames before it. The stack is as long as the
+      // longest remaining layer so no layer is shortened (that would trigger its exit animation early).
       const layers = live.map((o) => ({
         spec: { component: o.component, props: o.props, width: res.width, height: res.height, fps: res.fps, frames: graphicFrames(o.start, o.end, res.fps), brand: res.brand },
         from: -nth(o),
       }));
-      const r = await renderStack(layers, 1, gdir, signal);
+      const length = Math.max(1, ...layers.map((l) => l.from + l.spec.frames));
+      const r = await renderStack(layers, length, gdir, signal, undefined, 0);
       graphics.push({ dir: gdir, pattern: r.pattern, start: t, frames: 1, layer: 0 });
     }
     const args = buildCommand(res, assFile, path.join(dir, "unused.mkv"), "draft", undefined, graphics, false);

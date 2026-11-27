@@ -221,15 +221,19 @@ function stackProps(layers: StackLayer[], frames: number) {
   };
 }
 
-/** Draw several graphics in one pass, stacked in the given order (first = bottom). All must share size, fps and brand. */
-export async function renderStack(layers: StackLayer[], frames: number, outDir: string, signal?: AbortSignal, onProgress?: (f: number) => void) {
+/**
+ * Draw several graphics in one pass, stacked in the given order (first = bottom). All must share size, fps and brand.
+ * `only`: draw just that one frame of the stack (previews). The stack must still be long enough for every layer,
+ * because Remotion shortens a layer that runs past the end, and graphics read their length for exit animations.
+ */
+export async function renderStack(layers: StackLayer[], frames: number, outDir: string, signal?: AbortSignal, onProgress?: (f: number) => void, only?: number) {
   const fx: string[] = [];
   for (const l of layers) {
     const c = l.spec.component;
     if (c.startsWith("fx:")) fx.push(c.slice(3));
     else if (!(c in GRAPHICS)) throw new StudioError("INVALID_INPUT", `Unknown graphic ${c}`);
   }
-  return renderPngs("Stack", stackProps(layers, frames), fx, frames, layers.map((l) => l.spec.component).join(" + "), outDir, signal, onProgress);
+  return renderPngs("Stack", stackProps(layers, frames), fx, only === undefined ? frames : 1, layers.map((l) => l.spec.component).join(" + "), outDir, signal, onProgress, only);
 }
 
 /** A key for a stack of graphics drawn together (changes when any member, its position or the length changes). */
@@ -241,7 +245,7 @@ export async function stackKey(layers: StackLayer[], frames: number): Promise<st
   return h.digest("hex").slice(0, 24);
 }
 
-async function renderPngs(id: string, props: Record<string, any>, fx: string[], frames: number, label: string, outDir: string, signal?: AbortSignal, onProgress?: (f: number) => void) {
+async function renderPngs(id: string, props: Record<string, any>, fx: string[], frames: number, label: string, outDir: string, signal?: AbortSignal, onProgress?: (f: number) => void, only?: number) {
   const serveUrl = await ensureBundle(fx);
   const { selectComposition, renderFrames, makeCancelSignal } = await import("@remotion/renderer");
   const cancel = makeCancelSignal();
@@ -260,6 +264,7 @@ async function renderPngs(id: string, props: Record<string, any>, fx: string[], 
       logLevel: "error",
       onStart: () => undefined,
       onFrameUpdate: (n: number) => onProgress?.(n / frames),
+      ...(only !== undefined ? { frameRange: [only, only] } : {}),
     } as any);
   } catch (e) {
     if (signal?.aborted) throw new StudioError("CANCELLED", "Cancelled");
