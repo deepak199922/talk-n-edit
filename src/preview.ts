@@ -62,8 +62,9 @@ export async function previewStills(timelineId: string, version: number | undefi
     const vfinal = args[mapAt + 1];
     const aout = args[mapAt + 3];
     const out = path.join(dir, `t${String(n).padStart(2, "0")}-${r3(t)}.jpg`);
-    // Seek to just before the frame (rounding down), so the frame itself is kept, even the very last one.
-    const ss = Math.floor(t * 1000) / 1000;
+    // Seek half a frame early: frame timestamps can land a hair under t (e.g. 22.599999 for frame 678 at 30 fps),
+    // and seeking to t exactly would then skip to the next frame, which the one-frame graphics don't cover.
+    const ss = Math.max(0, Math.floor(((fi - 0.5) / res.fps) * 1000) / 1000);
     const run = [...args.slice(0, fc), "-filter_complex", `${args[fc + 1]};\n${aout}anullsink`, "-map", vfinal, "-ss", String(ss), "-frames:v", "1", "-q:v", "3", out];
     await ffmpeg(run, { cwd: dir, signal, label: "ffmpeg preview" });
     if (!fs.existsSync(out)) throw new StudioError("ENGINE_FAILED", `No picture came out for ${r3(t)}s`);

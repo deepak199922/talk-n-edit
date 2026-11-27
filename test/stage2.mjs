@@ -167,6 +167,8 @@ await group("time anchors in overlay props ($at / $time)", async () => {
   check("$at → seconds from overlay start", out.rows[0].at === 4, JSON.stringify(out));
   check("$time → timeline seconds", out.rows[1].at === 2);
   check("other objects untouched (even with an 'at' key)", out.rows[2].keep.at === 3 && out.x === 1);
+  const q = resolve.resolvePropTimes({ a: { $at: { at: 19.96 } }, b: { $at: { at: 19.95 } } }, 0, "props", words, map, 30);
+  check("snapped to whole frames (sub-frame shifts don't change the graphic)", q.a === q.b && q.a === 19.967, JSON.stringify(q));
   // Real resolve with the fake transcript: clip a = source 0–3, clip b = source 4–7 (timeline 3–6).
   fs.mkdirSync(path.join(process.env.TALK_N_EDIT_HOME, "fx"), { recursive: true });
   fs.writeFileSync(path.join(process.env.TALK_N_EDIT_HOME, "fx", "anchortest.json"), JSON.stringify({ name: "anchortest", description: "test", defaultDuration: 5, defaultProps: {} }));
@@ -192,10 +194,10 @@ await group("time anchors in overlay props ($at / $time)", async () => {
   const m = o?.props?.marks;
   check("custom effect props kept", Array.isArray(m), JSON.stringify(o?.props));
   if (m) {
-    check('word in clip a ("shift" at 1.3)', Math.abs(m[0] - 1.3) < 0.02, JSON.stringify(m));
-    check('same word in clip b (source 4.7 → timeline 3.7)', Math.abs(m[1] - 3.7) < 0.05, JSON.stringify(m));
-    check("phrase + edge end (\"the elements\" ends 2.6)", Math.abs(m[2] - 2.6) < 0.02, JSON.stringify(m));
-    check("offset", Math.abs(m[3] - 1.8) < 0.02, JSON.stringify(m));
+    check('word in clip a ("shift" at 1.3)', Math.abs(m[0] - 1.3) < 0.04, JSON.stringify(m));
+    check('same word in clip b (source 4.7 → timeline 3.7)', Math.abs(m[1] - 3.7) < 0.04, JSON.stringify(m));
+    check("phrase + edge end (\"the elements\" ends 2.6)", Math.abs(m[2] - 2.6) < 0.04, JSON.stringify(m));
+    check("offset", Math.abs(m[3] - 1.8) < 0.04, JSON.stringify(m));
   }
   const bad = baseTl({ overlays: [{ id: "t", component: "fx:anchortest", start: { at: 0 }, duration: 2, props: { at: { $at: { clip: "a", word: "again" } } } }] });
   check("word cut out of the clip → clear error", throwsCode(() => resolve.resolveTimeline(bad, "draft")) === "INVALID_INPUT");
@@ -247,6 +249,9 @@ await group("timeline_preview (stills through the render graph)", async () => {
   const out = await renderVideo(v.timelineId, v.version);
   const d = Math.abs(luma(out.file, 4.5) - luma(p.frames[2].path, 0));
   check("matches the render at the same moment", d < 4, d);
+  // Times whose frame lands a hair under the exact second (22.6 s × 30 = 677.99999…) must still show their graphics.
+  const many = await preview.previewStills(v.timelineId, v.version, [0.7, 1.1, 2.6, 4.2, 5.3], "draft");
+  check("every requested moment gives its own frame", new Set(many.frames.map((f) => f.t)).size === 5, JSON.stringify(many.frames.map((f) => f.t)));
   check("time past the end is clamped", (await preview.previewStills(v.timelineId, v.version, [99], "draft")).frames[0].t < 6.01);
 });
 

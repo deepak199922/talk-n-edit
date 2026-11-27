@@ -305,8 +305,8 @@ type WordTime = (clipId: string, phrase: string, n: number, edge: "start" | "end
  * (word = a word or phrase she says in that clip; n = which occurrence, 1 = first; edge "start" (default) or "end").
  * So times follow the speech when clips are trimmed or moved. Everything else is left exactly as written.
  */
-export function resolvePropTimes(value: unknown, overlayStart: number, path: string, wordTime: WordTime, clipMap: (clipId: string, t: number) => number | null): any {
-  if (Array.isArray(value)) return value.map((v, i) => resolvePropTimes(v, overlayStart, `${path}[${i}]`, wordTime, clipMap));
+export function resolvePropTimes(value: unknown, overlayStart: number, path: string, wordTime: WordTime, clipMap: (clipId: string, t: number) => number | null, fps = 0): any {
+  if (Array.isArray(value)) return value.map((v, i) => resolvePropTimes(v, overlayStart, `${path}[${i}]`, wordTime, clipMap, fps));
   if (!value || typeof value !== "object") return value;
   const obj = value as Record<string, unknown>;
   const keys = Object.keys(obj);
@@ -325,10 +325,13 @@ export function resolvePropTimes(value: unknown, overlayStart: number, path: str
       t = wordTime(a.clip, a.word, n, a.edge === "end" ? "end" : "start", p);
     } else return fail(p, "Unknown time anchor", 'Use {"at": seconds}, {"clip": "id", "sourceTime": s} or {"clip": "id", "word": "text", "n": 1}.');
     if (typeof a.offset === "number") t += a.offset;
-    return Math.round((keys[0] === "$at" ? t - overlayStart : t) * 1000) / 1000;
+    const v = keys[0] === "$at" ? t - overlayStart : t;
+    // Snapped to whole frames: graphics only change once per frame, and a sub-frame shift (e.g. after re-framing a
+    // clip) then leaves the graphic, and its cached frames, unchanged.
+    return fps > 0 ? Math.round(Math.round(v * fps) * (1000 / fps)) / 1000 : Math.round(v * 1000) / 1000;
   }
   const out: Record<string, unknown> = {};
-  for (const k of keys) out[k] = resolvePropTimes(obj[k], overlayStart, `${path}.${k}`, wordTime, clipMap);
+  for (const k of keys) out[k] = resolvePropTimes(obj[k], overlayStart, `${path}.${k}`, wordTime, clipMap, fps);
   return out;
 }
 
@@ -800,7 +803,7 @@ export function resolveTimeline(json: unknown, quality: "draft" | "final"): Reso
     oids.add(o.id);
     const remotion = isGraphic(o.component);
     const start = resolveAnchor(o.start, `${p}.start`, clipMap);
-    const timed = getConfig().features.propTimeAnchors === false ? o.props : resolvePropTimes(o.props, start, `${p}.props`, wordTime, clipMap);
+    const timed = getConfig().features.propTimeAnchors === false ? o.props : resolvePropTimes(o.props, start, `${p}.props`, wordTime, clipMap, fps);
     const props = remotion ? validateGraphicProps(o.component, timed, p) : validateOverlayProps(o.component, timed, p);
     if (start >= duration) fail(`${p}.start`, `Overlay starts at ${r3(start)}s, after the timeline ends (${r3(duration)}s)`);
     overlays.push({ id: o.id, component: o.component, engine: remotion ? "remotion" : "ass", start: r3(start), end: r3(Math.min(duration, start + o.duration)), props, layer: o.layer ?? 1 });
