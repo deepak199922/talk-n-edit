@@ -1,11 +1,20 @@
 # Changelog
 
-## Unreleased (0.5.4): faster re-renders, disk space tools (switchable)
+## 0.5.4: faster editing, video effects, sound packs (switchable)
 
+Every speed change has a switch under `features` in config.json; off = the 0.5.3 behaviour. Final-render quality is unchanged.
+
+- **New graphics are drawn in one pass.** Graphics next to each other in stacking order are drawn together (one screenshot per frame instead of one per graphic per frame). Switch: `graphicsOnePass`.
+- **Faster drafts on a Mac:** drafts use the hardware encoder; finals still use x264 at the same quality. Switch: `hwDraftEncode`.
+- **`timeline_preview`:** still pictures at chosen seconds, drawn exactly like a render (cuts, framing, zooms, effects, captions, graphics), in seconds instead of a full render.
+- **`timeline_patch`:** change one value by path (e.g. `overlays[id=panel].props.rows[2].text`) without resending the timeline; validated and saved as the next version.
+- **Times tied to speech:** inside overlay props, `{"$at": {"clip": "c1", "word": "shift"}}` becomes seconds from the overlay's start, so graphics stay in sync when clips are trimmed. Switch: `propTimeAnchors`.
+- **Video effects (`vfx`):** flash, shake, rgbSplit, glitch, blur, vignette, blackWhite, invert, punch, ghost, motionBlur, letterbox and grain, each for a stretch of time; zooms accept `shake`.
+- **Sound packs with licence records:** `sound_pack_import` adds sounds you downloaded (Sonniss GDC bundles, Pixabay, CC0 Freesound, your own recordings) as `packs/<pack>/<name>`. Non-commercial licences are refused and CC-BY needs a credit line. Every render writes `credits.json` (and returns `credits`) listing each sound and its licence.
 - **Graphics are reused between renders.** Each animated graphic is drawn once into `cache/graphics` and reused by any render that needs exactly the same one, so a fix to one overlay redraws only that overlay, and graphics shared by several videos (a credit badge, an end card) are drawn once. Render results show `graphics: { drawn, reused }`. Switch: `features.graphicsCache`.
 - **Nothing is removed automatically.** Renders add a note when the cache passes `features.graphicsCacheWarnGB` (default 20 GB).
 - **New tools:** `storage_report` shows what is using space (cached graphics by project, Reel and age; leftover frames and in-between video in old renders). `storage_clean` removes what you pick, as a dry run unless `apply: true`; finished videos, sources, analyses and timelines are never touched, and graphics used in the last 6 hours are skipped.
-- Tests: `npm run test:storage`.
+- Tests: `npm run test:storage`, `npm run test:stage2`.
 
 ## 0.5.3: low-risk speed and fixes (switchable)
 

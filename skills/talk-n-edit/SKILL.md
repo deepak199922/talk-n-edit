@@ -51,15 +51,21 @@ Translate the brief into timeline features. Common requests:
 | Hinglish, English translation, or the transcript misspells words | captions `source: "lines"` with your own text per spoken phrase (anchored `{clip, sourceTime}`) |
 | widescreen film / trailer into 9:16 | `reframe: {mode: "fit", trim: {top, bottom}}` to cut its letterbox bars (measure with frames_get), hook above, captions `position: "lower"`, `size` 1.3–1.4 |
 | titles, emojis, arrows, price count-up, checklist, subscribe, confetti | `overlays` with components from `catalog_list components` |
+| flash, shake, glitch, RGB split, blur, black & white, cinematic bars, grain, trails | `vfx` items for a stretch of time (short: 0.2–0.6 s for hits, longer for moods) |
+| "pop a sound here", bigger sound library | library sounds from `catalog_list sfx`; packs the user downloaded go in with `sound_pack_import` (ask which licence; never guess) |
 | anything else visual | write it with `fx_create` (section 5) |
+
+Timing: inside overlay props, write times as `{"$at": {"clip": "c1", "word": "shift"}}` (seconds from the overlay's start, tied to the spoken word) instead of computing seconds by hand; they stay in sync when clips are trimmed.
+
+Suggest edits: when the user wants Claude to decide extras, propose a short list per moment ("punch-in + whoosh at 'wrong!'", "flash on the reveal") and add them after a yes. Keep effects purposeful: one strong effect beats five.
 
 Rules: never invent asset ids, sentence ids, components, presets or sounds. Clip in/out snap to word edges by default; when you cut one passage into back-to-back clips, put each cut in the pause between words with `"snap": "frame"`, and fix any "same words may play twice" warning before rendering. Hook in the first second. Clips must make sense on their own. Keep captions clear of graphics (graphics "bottom" sits above captions). Emoji only render in animated components (AnimatedTitle, Emoji), not in HookText, LowerThird or TitleCard.
 
 ## 4. Draft → review → revise → final
 
 1. `timeline_validate` — read the durations, `spokenText` (start and end of each clip) and warnings.
-2. `render_start` quality `draft` → `frames_get` at the hook, each effect, each transition and the end. Look at them. Optionally `open_in_player` so the user can watch.
-3. Tell the user in 2–4 lines what you made and ask what to change. For each revision: `timeline_get` → change only what they asked → `timeline_validate` (new version) → draft again. Versions are kept; "go back to the previous one" = render the earlier version.
+2. `timeline_preview` at the hook, each graphic and each effect to check text, positions and timing in seconds (it draws exactly what the render will). Then `render_start` quality `draft` → `frames_get` / `open_in_player` to check motion.
+3. Tell the user in 2–4 lines what you made and ask what to change. For each revision: change only what they asked with `timeline_patch` (one value by path, e.g. `overlays[id=panel].props.rows[2].text`) or, for bigger changes, `timeline_get` → `timeline_validate`; check with `timeline_preview`, then draft again. Unchanged graphics are reused from the cache, so re-renders are quicker. Versions are kept; "go back to the previous one" = render the earlier version.
 4. When they're happy: `render_start` quality `final` → `qa_check` → fix warn/fail (references/qa.md) → deliver: file name, length, one-line summary, a suggested post caption with hashtags.
 
 ## 5. Custom effects (when the library can't do it)

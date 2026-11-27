@@ -18,7 +18,7 @@
 
 ## Tools (MCP)
 
-`system_doctor`, `project_open`, `media_import`, `media_import_url` (download from a link, optionally only `start`–`end`; `cookiesFromBrowser` for signed-in videos), `link_info` (look at a link without downloading: chapters, most-replayed moments, resolutions), `discover_videos` (YouTube search, channel videos/Shorts/streams, Twitch clips/VODs, any listable link), `media_inspect`, `analyze` (transcript, faces, scenes, beats), `analysis_get`, `transcript_get`, `frames_get`, `catalog_list`, `timeline_validate`, `timeline_get`, `render_start`, `job_status`, `job_cancel`, `storage_report` (what is using disk space), `storage_clean` (remove picked cached graphics or old render leftovers; dry run unless `apply: true`), `qa_check`, `style_save`, `fx_create`, `open_in_player`.
+`system_doctor`, `project_open`, `media_import`, `media_import_url` (download from a link, optionally only `start`–`end`; `cookiesFromBrowser` for signed-in videos), `link_info` (look at a link without downloading: chapters, most-replayed moments, resolutions), `discover_videos` (YouTube search, channel videos/Shorts/streams, Twitch clips/VODs, any listable link), `media_inspect`, `analyze` (transcript, faces, scenes, beats), `analysis_get`, `transcript_get`, `frames_get`, `catalog_list`, `timeline_validate`, `timeline_get`, `render_start`, `job_status`, `job_cancel`, `timeline_patch` (change values by path; saved as the next version), `timeline_preview` (stills at chosen seconds, drawn like a render), `sound_pack_import` (user-downloaded sounds with a licence record), `storage_report` (what is using disk space), `storage_clean` (remove picked cached graphics or old render leftovers; dry run unless `apply: true`), `qa_check`, `style_save`, `fx_create`, `open_in_player`.
 
 `analysis_get` with `kind: "source"` returns a link import's title, channel, views, chapters and YouTube's most-replayed moments, in the downloaded file's time.
 
@@ -43,7 +43,7 @@ Full field list: [skills/talk-n-edit/references/timeline-spec.md](../skills/talk
 | `transcriptionBackend` | `auto` (`mlx` or `faster-whisper`) |
 | `limits` | `{ "maxImportGB": 20, "maxOutputMinutes": 15 }` |
 | `ffmpeg`, `ffprobe`, `python`, `chrome` | Auto-detected (on Windows also in winget, Scoop and Chocolatey folders); set a path to override |
-| `features` | `{ "shapedCaptions": true, "linkInfoCacheMinutes": 60, "localSectionCut": true, "crossProcessCancel": true, "graphicsCache": true, "graphicsCacheWarnGB": 20 }`; see below |
+| `features` | `{ "shapedCaptions": true, "linkInfoCacheMinutes": 60, "localSectionCut": true, "crossProcessCancel": true, "graphicsCache": true, "graphicsCacheWarnGB": 20, "graphicsOnePass": true, "hwDraftEncode": true, "propTimeAnchors": true }`; see below |
 
 ### Feature switches
 
@@ -56,6 +56,9 @@ Each switch can be turned off in `config.json` (e.g. `"features": { "localSectio
 | `localSectionCut` | A `start`/`end` import of a video whose full copy is already in the project is cut from that copy (exact times, nothing downloaded). Not used when a sharper version is available online. | Downloads the part with yt-dlp, as before; also used if the copy is missing or the cut fails (`notes` says so). |
 | `crossProcessCancel` | `job_cancel` can stop a job another Talk-n-Edit server (Claude Desktop vs Claude Code) is running. | Only jobs of this server can be stopped. |
 | `graphicsCache` | Each animated graphic is drawn once into `cache/graphics` and reused by any later render that needs exactly the same graphic (same code, settings, size, length and brand), so a fix to one overlay redraws only that overlay. Render results show `graphics: { drawn, reused }`. | Every render draws all its graphics into its own folder, as before. Also used automatically if the cache can't be used. |
+| `graphicsOnePass` | Graphics that aren't cached yet and sit next to each other in stacking order are drawn together in one Remotion pass (one screenshot per frame instead of one per graphic per frame) and cached as one entry. | One pass per graphic. Also used automatically if a combined pass fails. |
+| `hwDraftEncode` | Drafts on a Mac are encoded with the hardware encoder (`h264_videotoolbox`). Finals always use x264 (crf 18). | x264 for drafts too. Also used automatically if the hardware encoder fails. |
+| `propTimeAnchors` | Overlay props may contain `{"$at": anchor}` (seconds from the overlay's start) or `{"$time": anchor}` (timeline seconds), where anchor is `{at}`, `{clip, sourceTime}` or `{clip, word, n?, edge?, offset?}`. | Props are passed through untouched. |
 | `graphicsCacheWarnGB` | Renders add a `note` when the graphics cache is bigger than this many GB. Nothing is removed automatically: `storage_report` shows what the cache holds (by project, Reel and age) and `storage_clean` removes what you pick. | `0` never warns. |
 
 Environment: `TALK_N_EDIT_HOME` moves the working folder. Installs from before the rename keep using `~/VideoStudio` and `~/Downloads/Video Studio`.
@@ -92,6 +95,7 @@ npm test               # full end-to-end suite (~10 min) in a temp folder
 npm test -- --quick    # skips 4K, multi-process and MCP cases
 npm run test:features  # config.json switches, each on and off
 npm run test:storage   # graphics cache bookkeeping, storage_report and storage_clean
+npm run test:stage2    # timeline_patch, time anchors, vfx, timeline_preview, hw drafts, sound packs + credits
 ```
 
 Set `FACE_IMAGE=/path/to/portrait.jpg` to include the face-tracking and split-screen cases, and `VS_TEST_MODEL=<model or path>` to pick the Whisper model. The suite never touches your real workspace.

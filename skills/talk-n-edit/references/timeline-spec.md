@@ -41,6 +41,11 @@ Anchors: `{ "at": t }` = timeline time; `{ "clip": "c1", "sourceTime": t }` = fo
 
   "zooms": [ { "start": { "clip": "c1", "sourceTime": 15.2 }, "duration": 1.5, "scale": 1.35, "x": 0.5, "y": 0.4, "ease": "smooth", "ramp": 0.3 } ],
                                                                     // x/y = focus point in the output frame; ease smooth | snap | linear
+                                                                    // "shake": 0..1 adds camera shake while zoomed
+  "vfx": [ { "type": "flash", "start": { "clip": "c1", "sourceTime": 15.2 }, "duration": 0.3, "intensity": 0.7, "color": "#FFFFFF" },
+           { "type": "glitch", "start": { "at": 8 }, "duration": 0.4 } ],
+                                                                    // flash shake rgbSplit glitch blur vignette blackWhite invert punch ghost motionBlur letterbox grain
+                                                                    // each only between start and start+duration; drawn over the picture, under graphics and captions
   "masks": [ { "id": "m1", "start": { "at": 0 }, "duration": 30, "rect": { "x": 0.7, "y": 0.02, "w": 0.28, "h": 0.08 }, "type": "blur" } ],
                                                                     // blur | pixelate | box (+ color); rect in 0..1 of the output frame
   "layers": [
@@ -52,8 +57,15 @@ Anchors: `{ "at": t }` = timeline time; `{ "clip": "c1", "sourceTime": t }` = fo
     { "id": "t", "component": "AnimatedTitle", "start": { "at": 3 }, "duration": 2, "props": { "text": "3 mistakes", "style": "bounce" } },
     { "id": "e", "component": "Emoji", "start": { "clip": "c1", "sourceTime": 18 }, "duration": 1.2, "props": { "emoji": "🤯", "animation": "pop", "x": 0.8, "y": 0.3 } },
     { "id": "n", "component": "CountUp", "start": { "at": 6 }, "duration": 2, "props": { "to": 200000, "prefix": "₹", "locale": "en-IN", "label": "Price" } },
-    { "id": "x", "component": "fx:slot-price", "start": { "at": 9 }, "duration": 2.5, "props": { "value": "149999" } }
+    { "id": "x", "component": "fx:slot-price", "start": { "at": 9 }, "duration": 2.5, "props": { "value": "149999" } },
+    { "id": "steps", "component": "fx:explainer-list", "start": { "at": 3 }, "duration": 20,
+      "props": { "rows": [ { "at": { "$at": { "clip": "c1", "word": "shift" } }, "text": "Shift right first" },
+                           { "at": { "$at": { "clip": "c1", "word": "last element", "n": 1, "offset": -0.2 } }, "text": "Start from the end" } ] } }
   ],
+                                                                    // Time anchors anywhere in props: {"$at": anchor} = seconds from the overlay's start,
+                                                                    // {"$time": anchor} = timeline seconds. anchor: {"at": s} | {"clip", "sourceTime"} |
+                                                                    // {"clip", "word": "word or phrase", "n": occurrence, "edge": "start"|"end", "offset": s}.
+                                                                    // Times then follow her speech when clips are trimmed — prefer them over hand-computed seconds.
   "captions": { "source": "transcript", "preset": "karaoke-highlight", "emphasis": "auto", "position": "auto", "size": 1 },
                                                                     // size: 0.5–2 multiplier. Own text instead of the transcript (Hinglish, translation, fixed spelling):
                                                                     // "source": "lines", "lines": [ { "start": { "clip": "c1", "sourceTime": 84.0 }, "end": { "clip": "c1", "sourceTime": 85.7 }, "text": "Kahan ke Constitution mein likha hai," } ]
@@ -84,5 +96,5 @@ Anchors: `{ "at": t }` = timeline time; `{ "clip": "c1", "sourceTime": t }` = fo
 
 - Transitions overlap the clips, so total duration = sum of clips − transition durations. `timeline_validate` gives the real numbers.
 - Transitions: cut crossfade fade-black fade-white dissolve slide-left/right/up/down wipe-left/right/up/down whip-left/right zoom-in circle-open circle-close pixelize radial blur squeeze.
-- Sounds: `catalog_list sfx` (whoosh, swoosh-fast, swipe, pop, click, ding, riser, boom, camera-shutter, notification, glitch). Music: import the user's file; only use music they own or licensed.
-- Limits: 200 clips, 100 zooms, 50 overlays, 20 masks, 20 layers, 40 audio items, 15 min output.
+- Sounds: `catalog_list sfx` (built-in: whoosh, swoosh-fast, swipe, pop, click, ding, riser, boom, camera-shutter, notification, glitch; plus any imported packs as `packs/<pack>/<name>`). Packs the user downloaded (Sonniss GDC, Pixabay, CC0 Freesound, own recordings) are added with `sound_pack_import` and their licence; renders list every sound and its licence in `credits`. Music: import the user's file; only use music they own or licensed. For trending songs, tell the user to add them in Instagram's own app when posting.
+- Limits: 200 clips, 100 zooms, 100 vfx, 50 overlays, 20 masks, 20 layers, 40 audio items, 15 min output.

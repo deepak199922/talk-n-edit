@@ -94,10 +94,11 @@ It downloads Talk-n-Edit to a `talk-n-edit` folder in your home folder and sets 
 | **Cutting** | Picks clips by sentence, removes pauses, speed ramps, freeze frames, reverse, stabilise, beat-synced cuts |
 | **Framing** | 16:9 → 9:16 / 1:1 / 4:5 that follows faces, split screen for two people, widescreen-film layout with the letterbox bars trimmed |
 | **Captions** | Word-by-word karaoke, word-pop, clean or boxed styles; auto-emphasis; Hindi, Punjabi, Hinglish, translations; adjustable size |
-| **Effects** | 22 transitions, keyframed zooms and punch-ins, 14 colour looks plus your own LUTs, blur/pixelate masks, picture-in-picture and B-roll |
+| **Effects** | 22 transitions, keyframed zooms and punch-ins, camera shake, 12 timed video effects (flash, glitch, RGB split, blur, black & white, cinematic bars, grain, trails…), 14 colour looks plus your own LUTs, blur/pixelate masks, picture-in-picture and B-roll |
 | **Graphics** | Animated titles, emoji, arrows, callouts, number count-ups (₹2,00,000 style), progress bar, follow/subscribe button, confetti, checklists, plus custom graphics on request |
-| **Audio** | Your music, ducked under speech automatically; 11 built-in sound effects; voice clean-up; loudness set for Instagram and YouTube (−14 LUFS) |
+| **Audio** | Your music, ducked under speech automatically; 11 built-in sound effects, plus sound packs you download (Sonniss, Pixabay, CC0 Freesound…) imported with their licence, and a credits list of every sound in each video; voice clean-up; loudness set for Instagram and YouTube (−14 LUFS) |
 | **Links and discovery** | For your own videos, or ones you have permission to use: import from a YouTube, Shorts or Twitch link, or just part of a long video (other sites that yt-dlp supports may work too, often only with your browser sign-in); keeps chapters and YouTube's most-replayed moments so Claude can jump to the best bits; find videos by search, channel or Twitch top clips, shown with thumbnails |
+| **Fast changes** | Quick still previews of any moment, one-value fixes, graphics timed to the spoken word, and unchanged graphics reused between renders |
 | **Quality checks** | Every final is checked for black frames, dead air, loudness, hook timing and caption placement before you get it |
 | **Styles** | Clean creator, hype, cinematic, podcast, minimal, product showcase, and your own saved styles |
 
