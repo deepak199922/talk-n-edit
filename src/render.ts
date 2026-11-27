@@ -12,7 +12,7 @@ import { newId, slug } from "./ids.js";
 import { enqueue, JobContext } from "./jobs.js";
 import { assertWritable } from "./paths.js";
 import { quickQa } from "./qa.js";
-import { renderGraphic } from "./remotion.js";
+import { cacheWarning, drawGraphic } from "./gcache.js";
 import { Resolved, resolveTimeline, Segment } from "./resolve.js";
 import { getProject, getRender, getTimeline, insertRender, updateRender } from "./store.js";
 
@@ -395,17 +395,21 @@ export async function renderJob(input: RenderJobInput, ctx: JobContext) {
   const graphicsOverlays = res.overlays.filter((o) => o.engine === "remotion");
   const graphics: GraphicInput[] = [];
   let p0 = 0.03;
+  let reused = 0;
   if (graphicsOverlays.length) {
+    const who = { project: getProject(rnd.project_id).name, timeline: res.name };
     for (let i = 0; i < graphicsOverlays.length; i++) {
       const o = graphicsOverlays[i];
       const gdir = path.join(dir, `graphic-${slug(o.id, 30)}`);
-      const r = await renderGraphic(
+      const r = await drawGraphic(
         { component: o.component, props: o.props, width: res.width, height: res.height, fps: res.fps, frames: Math.max(1, Math.round((o.end - o.start) * res.fps)), brand: res.brand },
         gdir,
+        who,
         ctx.signal,
         (f) => ctx.progress(`animating ${o.component} (${i + 1}/${graphicsOverlays.length})`, 0.03 + 0.2 * ((i + f) / graphicsOverlays.length)),
       );
-      graphics.push({ dir: gdir, pattern: r.pattern, start: o.start, frames: r.frames, layer: o.layer });
+      if (r.cached) reused++;
+      graphics.push({ dir: r.dir, pattern: r.pattern, start: o.start, frames: r.frames, layer: o.layer });
     }
     p0 = 0.23;
   }
@@ -475,7 +479,8 @@ export async function renderJob(input: RenderJobInput, ctx: JobContext) {
   ctx.progress("checking output", 0.98);
   const qa = await quickQa(output, res, ctx.signal);
   fs.writeFileSync(path.join(dir, "qa.json"), JSON.stringify(qa, null, 1));
-  const data = { ...rnd.data, output, exported, duration: r3(pr.duration), planned: r3(res.duration), width: pr.width, height: pr.height, qa: qa.summary };
+  const graphicsInfo = graphicsOverlays.length ? { drawn: graphicsOverlays.length - reused, reused } : undefined;
+  const data = { ...rnd.data, output, exported, duration: r3(pr.duration), planned: r3(res.duration), width: pr.width, height: pr.height, qa: qa.summary, graphics: graphicsInfo };
   updateRender(rnd.id, "succeeded", data);
   return {
     renderId: rnd.id,
@@ -486,8 +491,18 @@ export async function renderJob(input: RenderJobInput, ctx: JobContext) {
     size: `${pr.width}x${pr.height}`,
     qa: qa.summary,
     warnings: res.warnings,
+    graphics: graphicsInfo,
+    note: safeCacheWarning(),
     clips: res.clipsSummary,
   };
+}
+
+function safeCacheWarning(): string | undefined {
+  try {
+    return cacheWarning();
+  } catch {
+    return undefined;
+  }
 }
 
 /** Create a render row and queue the job. */

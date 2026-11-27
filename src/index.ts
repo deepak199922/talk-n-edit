@@ -6,6 +6,7 @@ import { z } from "zod";
 import { asStudioError } from "./errors.js";
 import { readImageB64 } from "./media.js";
 import * as svc from "./service.js";
+import { storageClean, storageReport } from "./storage.js";
 import { BROWSERS } from "./web.js";
 import { APP_ROOT } from "./config.js";
 
@@ -280,6 +281,33 @@ export function createServer() {
     "job_cancel",
     { description: "Cancel a queued or running job. The answer says whether anything was cancelled (a job that already finished keeps its results).", inputSchema: { jobId: z.string() } },
     wrap(async ({ jobId }) => ok(svc.cancelJobView(jobId))),
+  );
+
+  server.registerTool(
+    "storage_report",
+    {
+      description:
+        "Show what is using disk space: the shared graphics cache (by project and Reel, and how much has not been used for 7 or 30 days) and leftover files in old renders. Read-only. Renders add a note when the cache passes the size set in config.json features.graphicsCacheWarnGB.",
+      inputSchema: {},
+      annotations: RO,
+    },
+    wrap(async () => ok(storageReport())),
+  );
+
+  server.registerTool(
+    "storage_clean",
+    {
+      description:
+        "Free disk space by removing what the user picked. what: graphicsCache (drawn graphics kept for reuse; filter by project, timeline name and/or notUsedForDays) or renderFiles (drawn frames and in-between video in old renders; filter by project/timeline). Finished videos, sources, analyses and timelines are never touched, and graphics used in the last 6 hours are skipped. Runs as a dry run unless apply is true: show the user the dry-run result and only apply after they confirm.",
+      inputSchema: {
+        what: z.enum(["graphicsCache", "renderFiles"]),
+        project: z.string().optional(),
+        timeline: z.string().optional(),
+        notUsedForDays: z.number().min(0).max(3650).optional(),
+        apply: z.boolean().default(false),
+      },
+    },
+    wrap(async (a) => ok(storageClean(a))),
   );
 
   server.registerTool(

@@ -56,7 +56,7 @@ export interface RenderRow {
   status: string;
   dir: string;
   created: string;
-  data: { output?: string; exported?: string; duration?: number; planned?: number; width?: number; height?: number; qa?: unknown; jobId?: string };
+  data: { output?: string; exported?: string; duration?: number; planned?: number; width?: number; height?: number; qa?: unknown; jobId?: string; graphics?: { drawn: number; reused: number } };
 }
 
 // ---------- projects

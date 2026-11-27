@@ -55,6 +55,10 @@ export interface Features {
   localSectionCut: boolean;
   /** Let job_cancel stop a job that another Talk-n-Edit server process (Claude Desktop vs Claude Code) is running. */
   crossProcessCancel: boolean;
+  /** Reuse drawn graphics across renders (cache/graphics). false = draw into each render's folder as before. */
+  graphicsCache: boolean;
+  /** Renders add a note when the graphics cache is bigger than this many GB (0 = never). Nothing is removed automatically. */
+  graphicsCacheWarnGB: number;
 }
 
 /** Folders people keep videos in. Windows calls Movies "Videos", and OneDrive may hold Desktop and Documents. */
@@ -81,7 +85,7 @@ const DEFAULTS: Config = {
   whisperModel: defaultWhisperModel(),
   limits: { maxImportGB: 20, maxOutputMinutes: 15 },
   defaultBrandKit: "default",
-  features: { shapedCaptions: true, linkInfoCacheMinutes: 60, localSectionCut: true, crossProcessCancel: true },
+  features: { shapedCaptions: true, linkInfoCacheMinutes: 60, localSectionCut: true, crossProcessCancel: true, graphicsCache: true, graphicsCacheWarnGB: 20 },
 };
 
 let cached: Config | null = null;

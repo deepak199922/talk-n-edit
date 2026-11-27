@@ -871,7 +871,7 @@ if (!QUICK) {
     const c = new Client({ name: "e2e", version: "1" });
     await c.connect(t);
     const tools = (await c.listTools()).tools.map((x) => x.name).sort();
-    check("21 tools listed", tools.length === 21 && ["media_import_url", "discover_videos", "link_info"].every((n) => tools.includes(n)), tools.join(","));
+    check("23 tools listed", tools.length === 23 && ["media_import_url", "discover_videos", "link_info", "storage_report", "storage_clean"].every((n) => tools.includes(n)), tools.join(","));
     const call = async (name, args) => c.callTool({ name, arguments: args });
     const dv = await call("discover_videos", { platform: "twitch" });
     check("discover_videos: bad input → clean error", dv.isError && /INVALID_INPUT/.test(dv.content[0].text));

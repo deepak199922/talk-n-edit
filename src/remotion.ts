@@ -130,6 +130,57 @@ function inputProps(spec: GraphicSpec) {
   };
 }
 
+let libStamp: string | null = null;
+/** Names and sizes of the files graphics can load (fonts, images…). Whisper models are left out: graphics never use them. */
+function libraryStamp(): string {
+  if (libStamp !== null) return libStamp;
+  const h = crypto.createHash("sha1");
+  const walk = (dir: string, rel: string, depth: number) => {
+    let names: string[] = [];
+    try {
+      names = fs.readdirSync(dir).sort();
+    } catch {
+      return;
+    }
+    for (const n of names) {
+      if (depth === 0 && n === "models") continue;
+      const f = path.join(dir, n);
+      let st: fs.Stats;
+      try {
+        st = fs.statSync(f);
+      } catch {
+        continue;
+      }
+      if (st.isDirectory()) {
+        if (depth < 4) walk(f, `${rel}/${n}`, depth + 1);
+      } else h.update(`${rel}/${n}:${st.size};`);
+    }
+  };
+  walk(LIBRARY, "", 0);
+  let renderer = "";
+  try {
+    renderer = JSON.parse(fs.readFileSync(path.join(APP_ROOT, "node_modules", "@remotion", "renderer", "package.json"), "utf8")).version ?? "";
+  } catch {
+    /* unknown version: still a valid key, just never shared with another version */
+  }
+  h.update(`renderer:${renderer}`);
+  libStamp = h.digest("hex").slice(0, 16);
+  return libStamp;
+}
+
+/**
+ * A key for one drawn graphic. It changes whenever anything that can change its pixels changes: the graphics code
+ * (built-ins and the custom effect, via the bundle hash), the props, size, fps, frame count, brand, the files in the
+ * library and the renderer version. Two renders that need the same key can share the same frames.
+ */
+export async function graphicKey(spec: GraphicSpec): Promise<string> {
+  const fx = spec.component.startsWith("fx:") ? [spec.component.slice(3)] : [];
+  const serveUrl = await ensureBundle(fx);
+  const h = crypto.createHash("sha1");
+  h.update(JSON.stringify({ v: 1, bundle: path.basename(serveUrl), lib: libraryStamp(), input: inputProps(spec) }));
+  return h.digest("hex").slice(0, 24);
+}
+
 /** Plain-words fixes for animation errors that come up often. */
 export function fxHints(problems: string[]): string[] | undefined {
   const t = problems.join("\n");
